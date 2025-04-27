@@ -53,6 +53,28 @@ Gehe zur GitHub Releases Seite: https://github.com/chefsichter/hotkey-transcribe
 
 ### 🧰 Manuelle Installation
 
+#### pipx installieren
+
+pipx ist notwendig, um die Anwendung isoliert zu installieren:
+
+- Auf Linux:
+  ```bash
+  python3 -m pip install --user pipx
+  python3 -m pipx ensurepath
+  # Shell neu starten oder neu anmelden
+  ```
+  Oder via Paketmanager (Debian/Ubuntu):
+  ```bash
+  sudo apt update
+  sudo apt install pipx
+  ```
+
+- Auf Windows (PowerShell):
+  ```powershell
+  py -m pip install --user pipx
+  pipx ensurepath
+  # PowerShell neu starten
+  ```
 1. Direkte Installation aus dem Git-Repository (einfach):
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
