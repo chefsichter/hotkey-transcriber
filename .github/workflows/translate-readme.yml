@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Translate with DeepL
-        uses: chefsichter/hotkey-transcriber@main
+        uses: DeepLcom/deepl-action@v2
         with:
           auth_key: ${{ secrets.DEEPL_API_KEY }}
           input_file: README.de.md
