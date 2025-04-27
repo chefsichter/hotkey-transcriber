@@ -1,19 +1,12 @@
-import platform
-import shutil
 import sys
-import numpy as np
-import sounddevice as sd
-from faster_whisper import WhisperModel
 
 from PyQt5.QtWidgets import (
-    QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup, QToolTip
+    QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup
 )
-from PyQt5.QtGui import QIcon, QCursor
+from PyQt5.QtGui import QIcon
 
+from .object_loader import load_model, load_speech_recorder, load_keyboard_listener
 from .device_detector import detect_device
-from .keyboard_controller import KeyboardController
-from .keyboard_listener  import KeyBoardListener
-from .speech_recorder    import SpeechRecorder
 from .config.config_manger import load_config, save_config
 
 
@@ -33,39 +26,22 @@ DEFAULT_TRAY_TIP    = "Live-Diktat (Alt+R oder Tray-Menü)"
 
 
 # ───────── Whisper-Modell laden ──────────────────────────────
-device = detect_device()
-c_type = "float16" if device == 'cuda' else "float32"
+DEVICE = detect_device()
+COMPUTE_TYPE = "float16" if DEVICE == 'cuda' else "float32"
 
-def load_model(size, device, compute_type):
-    print(f"⏳  Lade Whisper-Modell mit Grösse '{size.capitalize()}' auf '{device}'…", flush=True)
-    model = WhisperModel(size, device=device, compute_type=compute_type)
-    print(f"✅  Whisper-Modell mit Grösse '{size.capitalize()}' bereit.")
-    return model
-model = load_model(size=MODEL_SIZE, device=device, compute_type=c_type)
+model = load_model(size=MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
 
-# ─────────────────── Aufnahme-Logik ──────────────────────────
-print(f"⏳  Lade SpeechRecorder…", flush=True)
-keyboard_controller = KeyboardController(wait=WAIT_ON_KEYBOARD)
-
-recorder = SpeechRecorder(
+# Load recorder and keyboard listener with terminal spinner
+recorder = load_speech_recorder(
     model=model,
-    keyboard_controller=keyboard_controller,
+    wait_on_keyboard=WAIT_ON_KEYBOARD,
     channels=CHANNELS,
     chunk_ms=CHUNK_MS,
     interval=TRANSCRIBE_INTERVAL,
     language=LANGUAGE,
     rec_mark=REC_MARK
 )
-print("✅  SpeechRecorder bereit.")
-
-# ─────────────────── Keyboard-Logik ──────────────────────────
-print(f"⏳  Lade KeyBoardListener...", flush=True)
-hotkey = KeyBoardListener(
-    start_callback=recorder.start,
-    stop_callback=recorder.stop
-)
-hotkey.start()
-print("✅  KeyBoardListener bereit.")
+hotkey = load_keyboard_listener(recorder)
 
 def main():
     # Erlaube Unterbrechen mit Ctrl+C in der Konsole
@@ -123,11 +99,15 @@ def main():
                 was_running = recorder.running
                 if was_running:
                     recorder.stop()
-                new_model = load_model(size=model_name, device=device, compute_type=c_type)
+                # Reload model via CLI spinner in terminal
+                new_model = load_model(size=model_name, device=DEVICE, compute_type=COMPUTE_TYPE)
                 recorder.model = new_model
                 config["model_size"] = model_name
                 save_config(config)
-                tray.showMessage("Modell geändert", f"Neues Modell: {model_name}", QSystemTrayIcon.Information, 1500)
+                tray.showMessage(
+                    "Modell geändert", f"Neues Modell: {model_name}",
+                    QSystemTrayIcon.Information, 1500
+                )
                 if was_running:
                     recorder.start()
             return slot

@@ -1,10 +1,12 @@
+🇬🇧 [English](./README.md) | 🇩🇪 [Deutsch](./README.de.md)
+
 # 🚀 Hotkey Transcriber
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 🎙️ Live-Diktier-Tool mit Whisper
 
-Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) kurze Sprachaufnahmen starten und stoppen. Der erkannte Text wird automatisch in das aktive Fenster eingefügt und in die Zwischenablage kopiert.
+Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) in Echtzeit transcribieren (Speech-To-Text). Der erkannte Text wird automatisch in das aktive Fenster eingefügt.
 
 ## 📑 Inhaltsverzeichnis
 - [✨ Features](#features)
@@ -18,10 +20,10 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) kurze Sprachaufna
 - [📜 Lizenz](#lizenz)
 
 ## ✨ Features
-- 🔊 Live-Diktat mit OpenAI Whisper (via `faster-whisper`)
+- 🔊 Live-Diktat lokal mit OpenAI Whisper (via `faster-whisper`)
 - ⌨️ Aufnahme per Hotkey (Alt+R)
 - 🖥️ Traysymbol (Windows & Linux)
-- 📋 Automatisches Einfügen des Transkripts
+- 📋 Automatisches Einfügen des erkannten Transkripts
 - ⚙️ Einstellbares Transkriptions-Intervall und Erkennungssprache
 
 ## 🛠️ Voraussetzungen
