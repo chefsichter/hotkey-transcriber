@@ -33,9 +33,13 @@ CHUNK_MS            = config.get("chunk_ms", 30) # wie viele Millisekunden Audio
 # ───────── Whisper-Modell laden ──────────────────────────────
 device = detect_device()
 c_type = "float16" if device == 'cuda' else "float32"
-print(f"⏳  Lade Whisper-Modell auf '{device}'…", flush=True)
-model = WhisperModel(MODEL_SIZE, device=device, compute_type=c_type)
-print(f"✅  Whisper-Modell mit Grösse '{MODEL_SIZE}' bereit.")
+
+def load_model(size, device, compute_type):
+    print(f"⏳  Lade Whisper-Modell mit Grösse '{size.capitalize()}' auf '{device}'…", flush=True)
+    model = WhisperModel(size, device=device, compute_type=compute_type)
+    print(f"✅  Whisper-Modell mit Grösse '{size.capitalize()}' bereit.")
+    return model
+model = load_model(size=MODEL_SIZE, device=device, compute_type=c_type)
 
 # ─────────────────── Aufnahme-Logik ──────────────────────────
 print(f"⏳  Lade SpeechRecorder…", flush=True)
@@ -103,7 +107,7 @@ def main():
                 was_running = recorder.running
                 if was_running:
                     recorder.stop()
-                new_model = WhisperModel(model_name, device=device, compute_type=c_type)
+                new_model = load_model(size=model_name, device=device, compute_type=c_type)
                 recorder.model = new_model
                 config["model_size"] = model_name
                 save_config(config)
