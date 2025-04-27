@@ -2,7 +2,9 @@ import itertools
 import threading
 import time
 
-from faster_whisper import WhisperModel
+from faster_whisper import WhisperModel, download_model
+from huggingface_hub.utils import HfHubHTTPError
+
 from .keyboard_controller import KeyboardController
 from .speech_recorder import SpeechRecorder
 from .keyboard_listener import KeyBoardListener
@@ -18,17 +20,46 @@ def _spinner(message, stop_event):
     # Clear the line after done
     print(' ' * (len(message) + 2), end='\r', flush=True)
 
-def load_model(size, device, compute_type):
-    message = f"Lade Whisper-Modell mit Grösse '{size.capitalize()}' auf '{device}'…"
+def load_model(size, device, compute_type, cache_dir=None):
+    # 1) Versuch, nur aus dem Cache zu laden
+    try:
+        model_path = download_model(
+            size_or_id=size,
+            local_files_only=True,
+            cache_dir=cache_dir
+        )
+        cached = True
+    except (ValueError, HfHubHTTPError):
+        # 2) Noch nicht da → Download
+        print(f"⏬  Download Whisper-Modell '{size}'…")
+        model_path = download_model(
+            size_or_id=size,
+            local_files_only=False,
+            cache_dir=cache_dir
+        )
+        print(f"✅  Modell '{size}' heruntergeladen.")
+        cached = False
+
+    # 3) Spinner nur fürs lokale Laden
     stop_event = threading.Event()
+    message = f"Lade Whisper-Modell '{size}' auf '{device}'…"
     spinner_thread = threading.Thread(
         target=_spinner, args=(message, stop_event), daemon=True
     )
     spinner_thread.start()
-    model = WhisperModel(size, device=device, compute_type=compute_type)
+
+    model = WhisperModel(
+        model_size_or_path=model_path,
+        device=device,
+        compute_type=compute_type,
+        download_root=cache_dir,
+        local_files_only=True
+    )
+
     stop_event.set()
     spinner_thread.join()
-    print(f"✅  Whisper-Modell mit Grösse '{size.capitalize()}' bereit.", flush=True)
+    print(f"✅  Whisper-Modell '{size}' bereit.", flush=True)
+
     return model
  
 def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, interval, language, rec_mark):
