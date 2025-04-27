@@ -22,13 +22,16 @@ dependencies = [
 [project.scripts]
 hotkey-transcriber = "hotkey_transcriber.main:main"  # ⇢ `hotkey-transcriber` ist jetzt ein Konsolenbefehl
 
+[tool.setuptools]
+package-dir = {"" = "src"}      
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-hotkey_transcriber = ["../resources/icon/hotkey-transcriber.png",
-                      "../resources/linux/hotkey-transcriber.desktop"]
+hotkey_transcriber = ["resources/**/*"]
 
-[tool.setuptools.data-files]          # nur bei systemweiter Installation nötig
-"share/applications" = ["resources/linux/hotkey-transcriber.desktop"]
-"share/icons/hicolor/256x256/apps" = ["resources/icon/hotkey-transcriber.png"]
+[tool.setuptools.data-files]
+"share/applications" = ["desktop_files/linux/hotkey-transcriber.desktop"]
+"share/icons/hicolor/256x256/apps" = ["src/hotkey_transcriber/resources/icon/microphone.png"]
