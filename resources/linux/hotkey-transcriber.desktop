@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Hotkey Transcriber
+Comment=Echtzeit-Diktat mit Faster-Whisper
+Exec=hotkey-transcriber
+Icon=hotkey-transcriber
+Terminal=false
+Categories=Audio;Utility;Accessibility;
+StartupWMClass=hotkey-transcriber
