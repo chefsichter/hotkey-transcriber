@@ -1,0 +1,9 @@
+{
+  "model_size": "large-v3-turbo",
+  "interval": 1,
+  "language": "de",
+  "wait_on_keyboard": 0.02,
+  "channels": 1,
+  "chunk_ms": 30,
+  "rec_mark": "🔴 REC"
+}

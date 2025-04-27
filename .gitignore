@@ -1,0 +1,8 @@
+.venv/
+build/
+__pycache__/
+config/__pycache__/
+CTranslate2-rocm/
+export_code.py
+collected_sources.txt
+src/hotkey_transcriber.egg-info/
