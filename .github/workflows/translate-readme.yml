@@ -15,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Translate DE -> EN
+      - name: Translate DE -> en-US
         uses: lyqht/deepl-translate-github-action@v2.1.1
         with:
           deepl_api_key: ${{ secrets.DEEPL_API_KEY }}
-          target_languages: en                # DeepL-Code, kleingeschrieben
+          target_languages: en-US                # DeepL-Code, kleingeschrieben
           input_file_path: README.de.md
           output_file_name_pattern: README.md # überschreibt/erstellt README.md
 
