@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "hotkey-transcriber"
 version = "0.1.4"
 description = "Live-Diktat-Tool mit Whisper"
+license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

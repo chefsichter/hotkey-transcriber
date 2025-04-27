@@ -7,3 +7,4 @@ export_code.py
 collected_sources.txt
 src/hotkey_transcriber.egg-info/
 .vscode/
+logs/
