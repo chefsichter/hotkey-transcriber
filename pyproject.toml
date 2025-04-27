@@ -16,7 +16,6 @@ dependencies = [
     "pyautogui",
     "pyperclip",
     "PyQt5",
-    "appdirs",
 ]
 
 [project.scripts]
@@ -35,3 +34,25 @@ hotkey_transcriber = ["resources/**/*"]
 [tool.setuptools.data-files]
 "share/applications" = ["desktop_files/linux/hotkey-transcriber.desktop"]
 "share/icons/hicolor/256x256/apps" = ["src/hotkey_transcriber/resources/icon/microphone.png"]
+
+[tool.briefcase]
+
+[tool.briefcase.app.hotkey_transcriber]
+formal_name = "Hotkey Transcriber"
+description = "Live-Diktat-Tool mit Whisper"
+bundle = "io.github.chefsichter.hotkeytranscriber"
+version = "0.1.4"
+sources = ["src/hotkey_transcriber"]
+icon = "src/hotkey_transcriber/resources/icon/microphone.png"
+requires = [
+    "faster-whisper",
+    "sounddevice",
+    "numpy",
+    "pynput",
+    "pyautogui",
+    "pyperclip",
+    "PyQt5",
+]
+
+[tool.briefcase.app.hotkey_transcriber.linux]
+distribution = "AppImage"
