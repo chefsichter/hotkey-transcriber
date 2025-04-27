@@ -10,7 +10,7 @@ With Hotkey Transcriber you can start and stop short voice recordings using a ke
 - [✨ Features](#features)
 - [🛠️ Requirements](#requirements)
 - [⚙️ Installation](#installation)
-- [🪟 Start program](#start program)
+- [🪟 Start program](#start-program)
 - [🎉 Usage](#usage)
 - [⚙️ Configuration](#configuration)
 - [💡 Tips &amp; tricks](#tips--tricks)
