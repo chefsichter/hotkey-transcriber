@@ -72,7 +72,7 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
 - Auf Windows (PowerShell):
   ```powershell
   py -m pip install --user pipx
-  pipx ensurepath
+  py -m pipx ensurepath
   # PowerShell neu starten
   ```
 1. Direkte Installation aus dem Git-Repository (einfach):
