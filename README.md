@@ -1,10 +1,12 @@
+🇬🇧 [English](./README.md) | 🇩🇪 [German](./README.de.md)
+
 # 🚀 Hotkey Transcriber
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 🎙️ Live dictation tool with Whisper
 
-With Hotkey Transcriber you can start and stop short voice recordings using a key combination (Alt+R). The recognized text is automatically pasted into the active window and copied to the clipboard.
+With Hotkey Transcriber you can transcribe in real time (Speech-To-Text) using a key combination (Alt+R). The recognized text is automatically inserted into the active window.
 
 ## 📑 Table of contents
 - [✨ Features](#features)
@@ -18,10 +20,10 @@ With Hotkey Transcriber you can start and stop short voice recordings using a ke
 - [📜 License](#license)
 
 ## ✨ Features
-- 🔊 Live dictation with OpenAI Whisper (via `faster-whisper`)
+- 🔊 Live dictation locally with OpenAI Whisper (via `faster-whisper`)
 - ⌨️ Recording via hotkey (Alt+R)
 - 🖥️ Tray icon (Windows &amp; Linux)
-- 📋 Automatic insertion of the transcript
+- 📋 Automatic insertion of the recognized transcript
 - ⚙️ Adjustable transcription interval and recognition language
 
 ## 🛠️ Requirements
@@ -122,6 +124,3 @@ Default values are saved in a JSON file under `~/.config/hotkey-transcriber/conf
 
 ## 📜 License
 This project is licensed under the [MIT License](LICENSE).
-
-## Credits
-- Microphone icons created by [Freepik](https://www.flaticon.com/free-icons/microphone) - Flaticon
