@@ -2,9 +2,8 @@ import json
 import os
 
 from pathlib import Path
-import appdirs  # pip-Package, 100 % plattformneutral
 
-CONFIG_DIR = Path(appdirs.user_config_dir("hotkey-transcriber", "chefsichter"))
+CONFIG_DIR = Path(__file__).parent
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
