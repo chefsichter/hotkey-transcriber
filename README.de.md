@@ -26,75 +26,52 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) kurze Sprachaufna
 - ⚙️ Einstellbares Transkriptions-Intervall und Sprache
 
 ## 🛠️ Voraussetzungen
-- 🐍 Python 3.10+
-- 🦊 Git
-- Betriebssystemabhängige Bibliotheken:
-  - 🐧 Linux (Debian/Ubuntu): `sudo apt install python3-venv python3-dev portaudio19-dev`
-  - 🪟 Windows: Visual Studio Build Tools (für native Abhängigkeiten)
+
+Hotkey Transcriber nutzt im Hintergrund `faster-whisper`, eine optimierte Whisper-Implementierung für Echtzeit-Spracherkennung.
+
+Für eine flüssige, nahezu verzögerungsfreie Transkription wird eine GPU empfohlen:
+  - NVIDIA GPUs mit CUDA-Treibern (>=11.7) oder
+  - AMD GPUs mit aktivierter ROCm-Unterstützung.
+
+Ohne GPU (CPU-only) ist Transkription ebenfalls möglich, jedoch deutlich langsamer und mit einer Latenz von mehreren Sekunden pro Aufnahmeintervall.
 
 ## ⚙️ Installation
   
-### 1️⃣ Einfache Installation (One-shot-Skript)
+### 🎉 Einfache Installation
 
-Nutze das One-shot-Installer-Skript (`tools/setup_env.py`), das automatisch eine virtuelle Umgebung anlegt und alle Abhängigkeiten inklusive PyTorch installiert:
+Gehe zur GitHub Releases Seite: https://github.com/chefsichter/hotkey-transcriber/releases und lade das Paket für dein System herunter.
 
-```bash
-python3 tools/setup_env.py
-```
+- Linux (AppImage):
 
-Auf Windows:
-```powershell
-py tools/setup_env.py
-```
-
-### 2️⃣ Manuelle Installation
-  
-1. Repository klonen
-   ```bash
-   git clone <REPO_URL>
-   cd hotkey-transcriber
-   ```
-
-2. Virtuelle Umgebung anlegen und aktivieren
-   - Linux/macOS:
-     ```bash
-     python3 -m venv .venv && source .venv/bin/activate
-     ```
-   - Windows PowerShell:
-     ```powershell
-     python -m venv .venv
-     .\.venv\Scripts\Activate.ps1
-     ```
-   - Windows CMD:
-     ```cmd
-     python -m venv .venv
-     .\.venv\Scripts\activate.bat
-     ```
-
-3. Abhängigkeiten installieren
-   ```bash
-   pip install -e .
-   ```
-
-4. Optional: PyTorch-Version wählen
-   - CPU-Variante:
-     ```bash
-     pip install torch==2.2.* torchvision==0.17.* torchaudio==2.2.* --index-url https://download.pytorch.org/whl/cpu
-     ```
-   - ROCm 6.3 (AMD GPU):
-     ```bash
-     pip install torch==2.2.2+rocm6.3 torchvision==0.17.2+rocm6.3 torchaudio==2.2.2+rocm6.3 --index-url https://download.pytorch.org/whl/rocm6.3
-     ```
-
-## 🐧 Linux-spezifische Schritte
-- Desktop-Eintrag und Icon werden bei systemweiter Installation (`sudo pip install .`) automatisch unter `/usr/share/applications` und `/usr/share/icons/hicolor/256x256/apps` abgelegt.
-- Für Benutzerinstallationen manuell kopieren:
   ```bash
-  cp resources/linux/hotkey_transcriber.desktop ~/.local/share/applications/
-  cp resources/icon/hotkey-transcriber.png ~/.local/share/icons/hicolor/256x256/apps/
+  chmod +x hotkey-transcriber-*.AppImage
+  ./hotkey-transcriber-*.AppImage
   ```
 
-## 🪟 Windows-spezifische Schritte
+- Windows (EXE):
+
+  Lade die Datei `hotkey-transcriber-*.exe` herunter und führe sie per Doppelklick aus.
+
+### 2️⃣ Manuelle Installation
+
+1. Direkte Installation aus dem Git-Repository (einfach):
+   ```bash
+   pipx install git+https://github.com/chefsichter/hotkey-transcriber
+   ```
+
+   oder
+
+2. Manuelle Installation aus dem lokalen Klon:
+   ```bash
+   git clone https://github.com/chefsichter/hotkey-transcriber.git
+   cd hotkey-transcriber
+   python3 -m pip install --user pipx
+   python3 -m pipx ensurepath
+   # Shell neu starten, damit pipx im PATH verfügbar ist
+   pipx install .
+   ```
+
+## 🪟 Programm starten
 - Nach Aktivierung der virtuellen Umgebung genügt der Befehl:
   ```cmd
   hotkey-transcriber
@@ -102,11 +79,13 @@ py tools/setup_env.py
 - Das Programm startet als Tray-Anwendung.
 
 ## 🎉 Nutzung
-1. Starte das Programm mit `hotkey-transcriber`.
-2. Ein Tray-Symbol erscheint.
-3. Drücke `Alt+R`, um die Aufnahme zu starten. Ein rotes Symbol signalisiert die Aufnahme.
-4. Lasse `R` los, um die Aufnahme zu stoppen. Der erkannte Text wird eingefügt und kopiert.
-5. Über das Tray-Menü kannst du das Transkriptions-Intervall und die Sprache anpassen oder das Programm beenden.
+1. Drücke `Alt+R`, um die Aufnahme zu starten. Ein rotes Symbol signalisiert die Aufnahme.
+2. Lasse `R` los, um die Aufnahme zu stoppen. Der erkannte Text wird eingefügt und kopiert.
+3. Über das Tray-Menü kannst du das Transkriptions-Intervall, die Sprache ändern oder das Programm beenden.
+4. Modellwahl (Tray-Icon → „Modell wählen“):
+    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+    - Kleinere Modelle: reduzierter VRAM- & CPU-Bedarf → schnellere Transkription (leicht geringere Genauigkeit)
+    - VRAM-Empfehlung: `tiny`/`base`: 2–4 GB; `small`/`medium`/`large*`: ≥6 GB
 
 ## ⚙️ Konfiguration
 Standardwerte werden in einer JSON-Datei unter `~/.config/hotkey-transcriber/config.json` gespeichert. Einstellungen wie Modellgröße, Intervall und Sprache werden automatisch beibehalten.
