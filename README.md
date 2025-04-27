@@ -22,7 +22,7 @@ With Hotkey Transcriber you can start and stop short voice recordings using a ke
 - ⌨️ Recording via hotkey (Alt+R)
 - 🖥️ Tray icon (Windows &amp; Linux)
 - 📋 Automatic insertion of the transcript
-- ⚙️ Adjustable transcription interval and language
+- ⚙️ Adjustable transcription interval and recognition language
 
 ## 🛠️ Requirements
 
@@ -102,14 +102,14 @@ pipx is required to install the application in isolation:
 ## 🎉 Usage
 1. Press `Alt+R` to start recording. A red symbol indicates recording.
 2. Release `R` to stop the recording. The recognized text is pasted and copied.
-3. You can use the tray menu to change the transcription interval, the language or exit the program.
+3. You can use the tray menu to change the transcription interval, the recognition language or exit the program.
 4. Model selection (tray icon → "Select model"):
     - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
     - Smaller models: reduced VRAM &amp; CPU requirements → faster transcription (slightly lower accuracy)
     - VRAM recommendation: `tiny`/`base`: 2-4 GB; `small`/`medium`/`large*`: ≥6 GB
 
 ## ⚙️ Configuration
-Default values are saved in a JSON file under `~/.config/hotkey-transcriber/config.json`. Settings such as model size, interval and language are automatically retained.
+Default values are saved in a JSON file under `~/.config/hotkey-transcriber/config.json`. Settings such as model size, interval and detection language are automatically retained.
 
 ## 💡 Tips &amp; tricks
 - Use short intervals (e.g. **0.5s**) for smooth dictation.
