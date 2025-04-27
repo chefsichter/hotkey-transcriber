@@ -10,7 +10,7 @@ With Hotkey Transcriber you can start and stop short voice recordings using a ke
 - [✨ Features](#features)
 - [🛠️ Requirements](#requirements)
 - [⚙️ Installation](#installation)
-- [🪟 Start program](#start-program)
+- [🪟 Start program](#start program)
 - [🎉 Usage](#usage)
 - [⚙️ Configuration](#configuration)
 - [💡 Tips &amp; tricks](#tips--tricks)
@@ -53,6 +53,28 @@ Go to the GitHub releases page: https://github.com/chefsichter/hotkey-transcribe
 
 ### 🧰 Manual installation
 
+#### Install pipx
+
+pipx is required to install the application in isolation:
+
+- On Linux:
+  ```bash
+  python3 -m pip install --user pipx
+  python3 -m pipx ensurepath
+  # Restart shell or log in again
+  ```
+  Or via package manager (Debian/Ubuntu):
+  ```bash
+  sudo apt update
+  sudo apt install pipx
+  ```
+
+- On Windows (PowerShell):
+  ```powershell
+  py -m pip install --user pipx
+  pipx ensurepath
+  # Restart PowerShell
+  ```
 1. Direct installation from the Git repository (simple):
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
