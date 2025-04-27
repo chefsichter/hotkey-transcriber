@@ -88,9 +88,6 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    ```bash
    git clone https://github.com/chefsichter/hotkey-transcriber.git
    cd hotkey-transcriber
-   python3 -m pip install --user pipx
-   python3 -m pipx ensurepath
-   # Shell neu starten, damit pipx im PATH verfügbar ist
    pipx install .
    ```
 
