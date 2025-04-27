@@ -22,7 +22,7 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) kurze Sprachaufna
 - ⌨️ Aufnahme per Hotkey (Alt+R)
 - 🖥️ Traysymbol (Windows & Linux)
 - 📋 Automatisches Einfügen des Transkripts
-- ⚙️ Einstellbares Transkriptions-Intervall und Sprache
+- ⚙️ Einstellbares Transkriptions-Intervall und Erkennungssprache
 
 ## 🛠️ Voraussetzungen
 
@@ -102,14 +102,14 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
 ## 🎉 Nutzung
 1. Drücke `Alt+R`, um die Aufnahme zu starten. Ein rotes Symbol signalisiert die Aufnahme.
 2. Lasse `R` los, um die Aufnahme zu stoppen. Der erkannte Text wird eingefügt und kopiert.
-3. Über das Tray-Menü kannst du das Transkriptions-Intervall, die Sprache ändern oder das Programm beenden.
+3. Über das Tray-Menü kannst du das Transkriptions-Intervall, die Erkennungssprache ändern oder das Programm beenden.
 4. Modellwahl (Tray-Icon → „Modell wählen“):
     - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
     - Kleinere Modelle: reduzierter VRAM- & CPU-Bedarf → schnellere Transkription (leicht geringere Genauigkeit)
     - VRAM-Empfehlung: `tiny`/`base`: 2–4 GB; `small`/`medium`/`large*`: ≥6 GB
 
 ## ⚙️ Konfiguration
-Standardwerte werden in einer JSON-Datei unter `~/.config/hotkey-transcriber/config.json` gespeichert. Einstellungen wie Modellgröße, Intervall und Sprache werden automatisch beibehalten.
+Standardwerte werden in einer JSON-Datei unter `~/.config/hotkey-transcriber/config.json` gespeichert. Einstellungen wie Modellgröße, Intervall und Erkennungssprache werden automatisch beibehalten.
 
 ## 💡 Tipps & Tricks
 - Verwende kurze Intervalle (z.B. **0.5s**) für flüssiges Diktat.

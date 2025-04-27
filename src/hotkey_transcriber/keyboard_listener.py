@@ -18,6 +18,7 @@ class KeyBoardListener:
         self.stop_callback  = stop_callback
         self.alt_pressed    = False
         self.r_pressed      = False
+        self.alt_down = False
         self.recording = False
 
         self.listener = keyboard.Listener(
