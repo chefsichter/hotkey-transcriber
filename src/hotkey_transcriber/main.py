@@ -6,9 +6,9 @@ import sounddevice as sd
 from faster_whisper import WhisperModel
 
 from PyQt5.QtWidgets import (
-    QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup
+    QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup, QToolTip
 )
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QCursor
 
 from .device_detector import detect_device
 from .keyboard_controller import KeyboardController
@@ -29,6 +29,8 @@ LANGUAGE            = config.get("language", "de") # whisper unterstützt multil
 REC_MARK            = config.get("rec_mark", "🔴 REC")
 CHANNELS            = config.get("channels", 1) # 1 Channel = Mono
 CHUNK_MS            = config.get("chunk_ms", 30) # wie viele Millisekunden Audio auf einmal geliefert wird
+DEFAULT_TRAY_TIP    = "Live-Diktat (Alt+R oder Tray-Menü)"
+
 
 # ───────── Whisper-Modell laden ──────────────────────────────
 device = detect_device()
@@ -75,7 +77,9 @@ def main():
     icon = QIcon("resources/icon/microphone.png")
 
     tray = QSystemTrayIcon(icon, parent=app)
-    tray.setToolTip("Live-Diktat (Alt+R oder Tray-Menü)")
+    tray = QSystemTrayIcon(icon, parent=app)
+    tray.setToolTip(DEFAULT_TRAY_TIP)
+
 
     menu = QMenu()
 
@@ -98,7 +102,19 @@ def main():
               "medium", "distil-medium.en", 
               "large-v3", "large-v3-turbo", "distil-large-v3"]:
         action = QAction(m)
+        # set tooltip text for manual display on hover
         action.setToolTip(MODEL_INFOS.get(m, ""))
+        # show tooltip manually when hovering over the menu action
+        def make_info_slot(a):
+            def slot():
+                info = a.toolTip() or a.text()
+                tray.showMessage("Modell-Info", info,
+                                QSystemTrayIcon.Information, 5000)
+            return slot
+        slot = make_info_slot(action)
+        action.hovered.connect(slot)      # kommt nur auf Plattformen mit Hover
+        action.triggered.connect(slot)    # funktioniert überall
+
         action.setCheckable(True)
         if MODEL_SIZE == m:
             action.setChecked(True)
