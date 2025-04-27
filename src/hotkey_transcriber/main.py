@@ -4,6 +4,9 @@ from PyQt5.QtWidgets import (
     QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup
 )
 from PyQt5.QtGui import QIcon
+from pathlib import Path
+
+from hotkey_transcriber.resources_manger import get_microphone_icon_path
 
 from .object_loader import load_model, load_speech_recorder, load_keyboard_listener
 from .device_detector import detect_device
@@ -47,15 +50,13 @@ def main():
     # Erlaube Unterbrechen mit Ctrl+C in der Konsole
     import signal
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    
     app = QApplication(sys.argv)
 
-    # Tray-Icon (schwarz) versuchen, sonst lokales PNG
-    icon = QIcon("resources/icon/microphone.png")
-
+    icon = QIcon(get_microphone_icon_path())
     tray = QSystemTrayIcon(icon, parent=app)
     tray = QSystemTrayIcon(icon, parent=app)
     tray.setToolTip(DEFAULT_TRAY_TIP)
-
 
     menu = QMenu()
 
