@@ -1,0 +1,24 @@
+name: Translate README
+on:
+  push:
+    paths:
+      - 'README.de.md'
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Translate with DeepL
+        uses: your-username/deepl-translate-action
+        with:
+          auth_key: ${{ secrets.DEEPL_API_KEY }}
+          input_file: README.de.md
+          output_file: README.md
+          target_lang: EN
+      - name: Commit and Push Translation
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add README.md
+          git commit -m "Auto-translated README to English"
+          git push

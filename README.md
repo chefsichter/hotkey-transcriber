@@ -4,7 +4,7 @@
 
 **🎙️ Live dictation tool with Whisper**
 
-With Hotkey Transcriber you can start and stop short audio recordings via a hotkey (Alt+R). The recognized text is automatically pasted into the active window.
+With Hotkey Transcriber you can start and stop short audio recordings using the hotkey `Alt+R`. The recognized text is automatically inserted into the active window and copied to the clipboard.
 
 ## 📑 Table of Contents
 - [✨ Features](#features)
@@ -26,99 +26,79 @@ With Hotkey Transcriber you can start and stop short audio recordings via a hotk
 - ⚙️ Adjustable transcription interval and language
 
 ## 🛠️ Requirements
-- 🐍 Python 3.10+
-- 🦊 Git
-- OS-specific libraries:
-  - 🐧 Linux (Debian/Ubuntu): `sudo apt install python3-venv python3-dev portaudio19-dev`
-  - 🪟 Windows: Visual Studio Build Tools (for native dependencies)
+
+Hotkey Transcriber uses `faster-whisper`, an optimized Whisper implementation, under the hood for real-time speech recognition.
+
+For smooth, near real-time transcription a GPU is recommended:
+- NVIDIA GPUs with CUDA drivers (>=11.7)
+- AMD GPUs with ROCm support
+
+Without a GPU (CPU-only), transcription is possible but significantly slower, with a latency of several seconds per capture interval.
 
 ## ⚙️ Installation
 
-### 1️⃣ One-step installer
+### 🎉 Easy Installation
 
-Use the one-shot setup script (`tools/setup_env.py`) to automatically create a virtual environment and install all dependencies, including PyTorch:
+Go to the GitHub Releases page:
+https://github.com/chefsichter/hotkey-transcriber/releases
+and download the package for your system.
 
-```bash
-python3 tools/setup_env.py
-```
-
-On Windows:
-```powershell
-py tools/setup_env.py
-```
-
-### 2️⃣ Manual installation
-
-1. Clone the repository:
-   ```bash
-   git clone <REPO_URL>
-   cd hotkey-transcriber
-   ```
-
-2. Create and activate a virtual environment:
-   - Linux/macOS:
-     ```bash
-     python3 -m venv .venv && source .venv/bin/activate
-     ```
-   - Windows PowerShell:
-     ```powershell
-     python -m venv .venv
-     .\.venv\Scripts\Activate.ps1
-     ```
-   - Windows CMD:
-     ```cmd
-     python -m venv .venv
-     .\.venv\Scripts\activate.bat
-     ```
-
-3. Install dependencies:
-   ```bash
-   pip install -e .
-   ```
-
-4. Optional: Choose a PyTorch build:
-   - CPU-only:
-     ```bash
-     pip install torch==2.2.* torchvision==0.17.* torchaudio==2.2.* --index-url https://download.pytorch.org/whl/cpu
-     ```
-   - ROCm 6.3 (AMD GPU):
-     ```bash
-     pip install torch==2.2.2+rocm6.3 torchvision==0.17.2+rocm6.3 torchaudio==2.2.2+rocm6.3 --index-url https://download.pytorch.org/whl/rocm6.3
-     ```
-
-## 🐧 Linux-specific steps
-- When installed system-wide (`sudo pip install .`), the desktop entry and icon are automatically placed under `/usr/share/applications` and `/usr/share/icons/hicolor/256x256/apps`.
-- For user installations, copy manually:
+- **Linux (AppImage):**
   ```bash
-  cp resources/linux/hotkey_transcriber.desktop ~/.local/share/applications/
-  cp resources/icon/hotkey-transcriber.png ~/.local/share/icons/hicolor/256x256/apps/
+  chmod +x hotkey-transcriber-*.AppImage
+  ./hotkey-transcriber-*.AppImage
   ```
 
-## 🪟 Windows-specific steps
-- After activating the virtual environment, run:
+- **Windows (EXE):**
+  Download `hotkey-transcriber-*.exe` and run it by double-clicking.
+
+### 2️⃣ Manual Installation
+
+1. **Direct installation from GitHub (easy):**
+   ```bash
+   pipx install git+https://github.com/chefsichter/hotkey-transcriber
+   ```
+
+   or
+
+   **Manual installation from a local clone:**
+   ```bash
+   git clone https://github.com/chefsichter/hotkey-transcriber.git
+   cd hotkey-transcriber
+   python3 -m pip install --user pipx
+   python3 -m pipx ensurepath
+   # Restart your shell so pipx is in your PATH
+   pipx install .
+   ```
+
+## 🪟 Starting the app
+- After installing (or activating your virtual environment), run:
   ```cmd
   hotkey-transcriber
   ```
-- The application will run in the system tray.
+- The program runs in the system tray.
 
 ## 🎉 Usage
-1. Launch the app with `hotkey-transcriber`.
-2. A tray icon will appear.
-3. Press `Alt+R` to start recording. A red icon indicates recording.
-4. Release `R` to stop. The recognized text will be pasted and copied.
-5. Use the tray menu to adjust the transcription interval, language, or exit.
+1. Press **Alt+R** to start recording. A red icon indicates recording.
+2. Release **R** to stop recording. The recognized text is inserted into the active window and copied to the clipboard.
+3. Via the tray menu you can adjust the transcription interval, change the language, or quit the application.
+4. **Model selection** (Tray icon → “Select model”):
+   - Options: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+   - Smaller models reduce VRAM & CPU usage → faster transcription (slightly lower accuracy)
+   - VRAM guide: `tiny`/`base`: 2–4 GB; larger models (`small`, `medium`, `large*`): ≥6 GB
+
 
 ## ⚙️ Configuration
-Default settings are stored in `~/.config/hotkey-transcriber/config.json`. Model size, interval, and language choices are preserved automatically.
+Default settings are stored in `~/.config/hotkey-transcriber/config.json`. Model, interval, and language preferences persist across restarts.
 
 ## 💡 Tips & Tricks
-- Use short intervals (e.g. **0.5s**) for fluid dictation.
-- Choose lighter models (`tiny` or `base`) on less powerful hardware.
+- Use short intervals (e.g. **0.5s**) for smoother dictation.
+- On weaker hardware choose lightweight models (`tiny` or `base`).
 
 ## 📄 Contributing
-- Report issues via GitHub Issues.
-- Pull requests are welcome.
-- See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for details.
+- Report issues via GitHub Issues
+- Pull requests welcome
+- See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for details
 
 ## 📜 License
 This project is licensed under the [MIT License](LICENSE).
