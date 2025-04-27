@@ -19,7 +19,10 @@ from .config.config_manger import load_config, save_config
 
 # ─────────────────────── Konfiguration ────────────────────────
 config = load_config()
+
 MODEL_SIZE          = config.get("model_size", "large-v3") # tiny, base, small, medium, large-v3, distil-large-v3, large-v3-turbo, turbo
+MODEL_INFOS         = config.get("model_infos", {})
+LANGUAGE_CODES      = config.get("language_codes", [["de", "Deutsch"], ["en", "English"]])
 TRANSCRIBE_INTERVAL = config.get("interval", 1) # Alle 1 Sekunden wird Audio mit Modell transcribiert
 WAIT_ON_KEYBOARD    = config.get("wait_on_keyboard", 0.02) # Wartezeitinterval bei mehrerem Tastendrücken
 LANGUAGE            = config.get("language", "de") # whisper unterstützt multilingual (=de) oder en
@@ -83,6 +86,7 @@ def main():
 
     # 2) Modell wählen
     model_menu = menu.addMenu("Modell")
+    model_menu.setToolTipsVisible(True)
     model_group = QActionGroup(menu)
     model_group.setExclusive(True)
     for m in ["tiny", "base", 
@@ -90,6 +94,7 @@ def main():
               "medium", "distil-medium.en", 
               "large-v3", "large-v3-turbo", "distil-large-v3"]:
         action = QAction(m)
+        action.setToolTip(MODEL_INFOS.get(m, ""))
         action.setCheckable(True)
         if MODEL_SIZE == m:
             action.setChecked(True)
@@ -115,7 +120,7 @@ def main():
     lang_group    = QActionGroup(menu)
     lang_group.setExclusive(True)
 
-    for code, label in [("de", "Deutsch"), ("en", "English")]:
+    for code, label in LANGUAGE_CODES:
         action = QAction(label)
         action.setCheckable(True)
         if recorder.language == code:
