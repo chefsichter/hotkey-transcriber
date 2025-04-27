@@ -52,7 +52,7 @@ Gehe zur GitHub Releases Seite: https://github.com/chefsichter/hotkey-transcribe
 
   Lade die Datei `hotkey-transcriber-*.exe` herunter und führe sie per Doppelklick aus.
 
-### 2️⃣ Manuelle Installation
+### 🧰 Manuelle Installation
 
 1. Direkte Installation aus dem Git-Repository (einfach):
    ```bash
