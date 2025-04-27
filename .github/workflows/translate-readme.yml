@@ -2,24 +2,35 @@ name: Translate README
 on:
   push:
     paths:
-      - 'README.de.md'
+      - README.de.md
   workflow_dispatch:
+
 jobs:
   translate:
     runs-on: ubuntu-latest
+
+    permissions:            # <-- wichtig fürs Commit!
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
-      - name: Translate with DeepL
-        uses: DeepLcom/deepl-action@v2
+
+      - name: Translate DE -> EN
+        uses: lyqht/deepl-translate-github-action@v2.1.1
         with:
-          auth_key: ${{ secrets.DEEPL_API_KEY }}
-          input_file: README.de.md
-          output_file: README.md
-          target_lang: EN
-      - name: Commit and Push Translation
+          deepl_api_key: ${{ secrets.DEEPL_API_KEY }}
+          target_languages: en                # DeepL-Code, kleingeschrieben
+          input_file_path: README.de.md
+          output_file_name_pattern: README.md # überschreibt/erstellt README.md
+
+      - name: Commit and push if changed
         run: |
-          git config user.name github-actions
+          git config user.name  github-actions
           git config user.email github-actions@github.com
-          git add README.md
-          git commit -m "Auto-translated README to English"
-          git push
+          if ! git diff --quiet README.md; then
+            git add README.md
+            git commit -m "Auto-translated README → English"
+            git push
+          else
+            echo "Nothing to commit"
+          fi
