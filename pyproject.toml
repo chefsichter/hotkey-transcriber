@@ -38,9 +38,9 @@ hotkey_transcriber = ["resources/**/*"]
 
 [tool.briefcase]
 project_name = "hotkey-transcriber"
-bundle       = "io.github.chefsichter.hotkeytranscriber"
-version      = "0.1.4"
-description  = "Live-Diktat-Tool mit Whisper"
+bundle = "io.github.chefsichter.hotkeytranscriber"
+version = "0.1.4"
+description = "Live-Diktat-Tool mit Whisper"
 
 [tool.briefcase.app.hotkey_transcriber]
 formal_name = "Hotkey Transcriber"
@@ -48,7 +48,7 @@ description = "Live-Diktat-Tool mit Whisper"
 bundle = "io.github.chefsichter.hotkeytranscriber"
 version = "0.1.4"
 sources = ["src/hotkey_transcriber"]
-icon = "src/hotkey_transcriber/resources/icon/microphone"
+icon = "src/hotkey_transcriber/resources/icon/hotkey-transcriber"
 requires = [
     "faster-whisper",
     "sounddevice",
