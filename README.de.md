@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**🎙️ Live-Diktier-Tool mit Whisper**
+## 🎙️ Live-Diktier-Tool mit Whisper
 
 Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) kurze Sprachaufnahmen starten und stoppen. Der erkannte Text wird automatisch in das aktive Fenster eingefügt und in die Zwischenablage kopiert.
 
