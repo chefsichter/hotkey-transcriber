@@ -5,11 +5,17 @@ import numpy as np
 import sounddevice as sd
 from faster_whisper import WhisperModel
 
+from PyQt5.QtWidgets import (
+    QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup
+)
+from PyQt5.QtGui import QIcon
+
 from .device_detector import detect_device
 from .keyboard_controller import KeyboardController
 from .keyboard_listener  import KeyBoardListener
 from .speech_recorder    import SpeechRecorder
 from .config.config_manger import load_config, save_config
+
 
 # ─────────────────────── Konfiguration ────────────────────────
 config = load_config()
@@ -23,11 +29,10 @@ CHUNK_MS            = config.get("chunk_ms", 30) # wie viele Millisekunden Audio
 
 # ───────── Whisper-Modell laden ──────────────────────────────
 device = detect_device()
-# device = 'cuda'
 c_type = "float16" if device == 'cuda' else "float32"
-print(f"⏳  Lade Whisper-Modell auf {device}…", flush=True)
+print(f"⏳  Lade Whisper-Modell auf '{device}'…", flush=True)
 model = WhisperModel(MODEL_SIZE, device=device, compute_type=c_type)
-print("✅  Modell bereit.")
+print(f"✅  Whisper-Modell mit Grösse '{MODEL_SIZE}' bereit.")
 
 # ─────────────────── Aufnahme-Logik ──────────────────────────
 print(f"⏳  Lade SpeechRecorder…", flush=True)
@@ -52,12 +57,6 @@ hotkey = KeyBoardListener(
 )
 hotkey.start()
 print("✅  KeyBoardListener bereit.")
-
-# ─────────────── Tray-App mit PyQt5 ─────────────────────────
-from PyQt5.QtWidgets import (
-    QApplication, QSystemTrayIcon, QMenu, QAction, QActionGroup
-)
-from PyQt5.QtGui import QIcon
 
 def main():
     app = QApplication(sys.argv)
@@ -110,7 +109,7 @@ def main():
     menu.addSeparator()
 
     # ——— 3) Sprache-Submenu ——————————————————————————————————
-    language_menu = menu.addMenu("Sprache")
+    language_menu = menu.addMenu("Erkennungssprache")
     lang_group    = QActionGroup(menu)
     lang_group.setExclusive(True)
 
@@ -126,8 +125,8 @@ def main():
                 config["language"] = c
                 save_config(config)
                 tray.showMessage(
-                    "Sprache geändert",
-                    f"Neue Sprache: {l}",
+                    "Erkennungssprache geändert",
+                    f"Neue Erkennungssprache: {l}",
                     QSystemTrayIcon.Information,
                     1500
                 )
@@ -147,6 +146,9 @@ def main():
 
     tray.setContextMenu(menu)
     tray.show()
+    tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+    print("📥  Tray-Icon verfügbar." if tray_available else "❌ Fehler, Tray-Icon nicht verfügbar." )
+    print("🎤  Live-Diktat bereit (Alt+R oder über das Tray-Menü starten).")
 
     sys.exit(app.exec_())
 
