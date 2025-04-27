@@ -59,12 +59,13 @@ hotkey.start()
 print("✅  KeyBoardListener bereit.")
 
 def main():
+    # Erlaube Unterbrechen mit Ctrl+C in der Konsole
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QApplication(sys.argv)
 
     # Tray-Icon (schwarz) versuchen, sonst lokales PNG
-    icon = QIcon.fromTheme("media-record")
-    if icon.isNull():
-        icon = QIcon("media-record.png")
+    icon = QIcon("resources/icon/microphone.png")
 
     tray = QSystemTrayIcon(icon, parent=app)
     tray.setToolTip("Live-Diktat (Alt+R oder Tray-Menü)")

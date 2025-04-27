@@ -122,3 +122,6 @@ Default values are saved in a JSON file under `~/.config/hotkey-transcriber/conf
 
 ## 📜 License
 This project is licensed under the [MIT License](LICENSE).
+
+## Credits
+- Microphone icons created by [Freepik](https://www.flaticon.com/free-icons/microphone) - Flaticon
