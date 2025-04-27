@@ -36,6 +36,10 @@ hotkey_transcriber = ["resources/**/*"]
 "share/icons/hicolor/256x256/apps" = ["src/hotkey_transcriber/resources/icon/microphone.png"]
 
 [tool.briefcase]
+project_name = "hotkey-transcriber"
+bundle       = "io.github.chefsichter.hotkeytranscriber"
+version      = "0.1.4"
+description  = "Live-Diktat-Tool mit Whisper"
 
 [tool.briefcase.app.hotkey_transcriber]
 formal_name = "Hotkey Transcriber"
