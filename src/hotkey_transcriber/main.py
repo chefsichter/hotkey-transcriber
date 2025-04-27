@@ -81,35 +81,36 @@ def main():
     menu.addAction(act_stop)
     menu.addSeparator()
 
-    # 2) Intervall-Submenu
-    interval_menu = menu.addMenu("Intervall")
-    group = QActionGroup(menu)
-    group.setExclusive(True)
-    for val in [0.2, 0.5, 1, 2, 3, 5, 10]:
-        action = QAction(f"{val}s")
+    # 2) Modell wählen
+    model_menu = menu.addMenu("Modell")
+    model_group = QActionGroup(menu)
+    model_group.setExclusive(True)
+    for m in ["tiny", "base", 
+              "small", "distil-small.en", 
+              "medium", "distil-medium.en", 
+              "large-v3", "large-v3-turbo", "distil-large-v3"]:
+        action = QAction(m)
         action.setCheckable(True)
-        if recorder.interval == val:
+        if MODEL_SIZE == m:
             action.setChecked(True)
-        # Mit Closure den Wert binden
-        def make_slot(v):
+        def make_model_slot(model_name):
             def slot():
-                recorder.set_interval(v)
-                config["interval"] = v
+                was_running = recorder.running
+                if was_running:
+                    recorder.stop()
+                new_model = WhisperModel(model_name, device=device, compute_type=c_type)
+                recorder.model = new_model
+                config["model_size"] = model_name
                 save_config(config)
-                tray.showMessage(
-                    "Intervall geändert",
-                    f"Neues Intervall: {v} Sekunden",
-                    QSystemTrayIcon.Information,
-                    1500
-                )
+                tray.showMessage("Modell geändert", f"Neues Modell: {model_name}", QSystemTrayIcon.Information, 1500)
+                if was_running:
+                    recorder.start()
             return slot
-        action.triggered.connect(make_slot(val))
-        group.addAction(action)
-        interval_menu.addAction(action)
+        action.triggered.connect(make_model_slot(m))
+        model_group.addAction(action)
+        model_menu.addAction(action)
 
-    menu.addSeparator()
-
-    # ——— 3) Sprache-Submenu ——————————————————————————————————
+    # 3) Erkennungssprache-Submenu
     language_menu = menu.addMenu("Erkennungssprache")
     lang_group    = QActionGroup(menu)
     lang_group.setExclusive(True)
@@ -137,10 +138,36 @@ def main():
         lang_group.addAction(action)
         language_menu.addAction(action)
 
+
+    # 4) Intervall-Submenu
+    interval_menu = menu.addMenu("Intervall")
+    group = QActionGroup(menu)
+    group.setExclusive(True)
+    for val in [0.2, 0.5, 1, 2, 3, 5, 10]:
+        action = QAction(f"{val}s")
+        action.setCheckable(True)
+        if recorder.interval == val:
+            action.setChecked(True)
+        # Mit Closure den Wert binden
+        def make_slot(v):
+            def slot():
+                recorder.set_interval(v)
+                config["interval"] = v
+                save_config(config)
+                tray.showMessage(
+                    "Intervall geändert",
+                    f"Neues Intervall: {v} Sekunden",
+                    QSystemTrayIcon.Information,
+                    1500
+                )
+            return slot
+        action.triggered.connect(make_slot(val))
+        group.addAction(action)
+        interval_menu.addAction(action)
+
     menu.addSeparator()
 
-
-    # 3) Exit
+    # 5) Exit
     act_exit = QAction("Beenden")
     act_exit.triggered.connect(lambda: (recorder.stop(), hotkey.stop(), app.quit()))
     menu.addAction(act_exit)
