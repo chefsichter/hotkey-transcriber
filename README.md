@@ -2,101 +2,100 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**🎙️ Live dictation tool with Whisper**
+## 🎙️ Live dictation tool with Whisper
 
-With Hotkey Transcriber you can start and stop short audio recordings using the hotkey `Alt+R`. The recognized text is automatically inserted into the active window and copied to the clipboard.
+With Hotkey Transcriber you can start and stop short voice recordings using a key combination (Alt+R). The recognized text is automatically pasted into the active window and copied to the clipboard.
 
-## 📑 Table of Contents
+## 📑 Table of contents
 - [✨ Features](#features)
 - [🛠️ Requirements](#requirements)
 - [⚙️ Installation](#installation)
 - [🐧 Linux-specific steps](#linux-specific-steps)
 - [🪟 Windows-specific steps](#windows-specific-steps)
 - [🎉 Usage](#usage)
-- [⚙️ Configuration](#configuration)
-- [💡 Tips & Tricks](#tips--tricks)
-- [📄 Contributing](#contributing)
+- [⚙️ configuration](#configuration)
+- [💡 Tips &amp; tricks](#tips--tricks)
+- [📄 Contribute](#contribute)
 - [📜 License](#license)
 
 ## ✨ Features
 - 🔊 Live dictation with OpenAI Whisper (via `faster-whisper`)
 - ⌨️ Recording via hotkey (Alt+R)
-- 🖥️ System tray icon (Windows & Linux)
+- 🖥️ Tray icon (Windows &amp; Linux)
 - 📋 Automatic insertion of the transcript
 - ⚙️ Adjustable transcription interval and language
 
 ## 🛠️ Requirements
 
-Hotkey Transcriber uses `faster-whisper`, an optimized Whisper implementation, under the hood for real-time speech recognition.
+Hotkey Transcriber uses `faster-whisper` in the background, an optimized whisper implementation for real-time speech recognition.
 
-For smooth, near real-time transcription a GPU is recommended:
-- NVIDIA GPUs with CUDA drivers (>=11.7)
-- AMD GPUs with ROCm support
+A GPU is recommended for smooth, almost lag-free transcription:
+  - NVIDIA GPUs with CUDA drivers (&gt;=11.7) or
+  - AMD GPUs with ROCm support enabled.
 
-Without a GPU (CPU-only), transcription is possible but significantly slower, with a latency of several seconds per capture interval.
+Without a GPU (CPU-only), transcription is also possible, but significantly slower and with a latency of several seconds per recording interval.
 
 ## ⚙️ Installation
+  
+### 🎉 Simple installation
 
-### 🎉 Easy Installation
+Go to the GitHub releases page: https://github.com/chefsichter/hotkey-transcriber/releases and download the package for your system.
 
-Go to the GitHub Releases page:
-https://github.com/chefsichter/hotkey-transcriber/releases
-and download the package for your system.
+- Linux (AppImage):
 
-- **Linux (AppImage):**
   ```bash
   chmod +x hotkey-transcriber-*.AppImage
   ./hotkey-transcriber-*.AppImage
   ```
 
-- **Windows (EXE):**
-  Download `hotkey-transcriber-*.exe` and run it by double-clicking.
+- Windows (EXE):
 
-### 2️⃣ Manual Installation
+  Download the file `hotkey-transcriber-*.exe` and execute it by double-clicking.
 
-1. **Direct installation from GitHub (easy):**
+### 🧰 Manual installation
+
+1. Direct installation from the Git repository (simple):
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
 
    or
 
-   **Manual installation from a local clone:**
+2. Manual installation from the local clone:
    ```bash
    git clone https://github.com/chefsichter/hotkey-transcriber.git
    cd hotkey-transcriber
    python3 -m pip install --user pipx
    python3 -m pipx ensurepath
-   # Restart your shell so pipx is in your PATH
+   # Restart shell so that pipx is available in PATH
    pipx install .
    ```
 
-## 🪟 Starting the app
-- After installing (or activating your virtual environment), run:
+## 🪟 Start program
+- After activating the virtual environment, the command is sufficient:
   ```cmd
   hotkey-transcriber
   ```
-- The program runs in the system tray.
+- The program starts as a tray application.
 
 ## 🎉 Usage
-1. Press **Alt+R** to start recording. A red icon indicates recording.
-2. Release **R** to stop recording. The recognized text is inserted into the active window and copied to the clipboard.
-3. Via the tray menu you can adjust the transcription interval, change the language, or quit the application.
-4. **Model selection** (Tray icon → “Select model”):
-   - Options: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
-   - Smaller models reduce VRAM & CPU usage → faster transcription (slightly lower accuracy)
-   - VRAM guide: `tiny`/`base`: 2–4 GB; larger models (`small`, `medium`, `large*`): ≥6 GB
-
+1. Press `Alt+R` to start recording. A red symbol indicates recording.
+2. Release `R` to stop the recording. The recognized text is pasted and copied.
+3. You can use the tray menu to change the transcription interval, the language or exit the program.
+4. Model selection (tray icon → "Select model"):
+    - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+    - Smaller models: reduced VRAM &amp; CPU requirements → faster transcription (slightly lower accuracy)
+    - VRAM recommendation: `tiny`/`base`: 2-4 GB; `small`/`medium`/`large*`: ≥6 GB
 
 ## ⚙️ Configuration
-Default settings are stored in `~/.config/hotkey-transcriber/config.json`. Model, interval, and language preferences persist across restarts.
+Default values are saved in a JSON file under `~/.config/hotkey-transcriber/config.json`. Settings such as model size, interval and language are automatically retained.
 
-## 💡 Tips & Tricks
-- Use short intervals (e.g. **0.5s**) for smoother dictation.
-- On weaker hardware choose lightweight models (`tiny` or `base`).
+## 💡 Tips &amp; tricks
+- Use short intervals (e.g. **0.5s**) for smooth dictation.
+- Choose lighter models (`tiny` or `base`) on weak hardware.
 
-## 📄 Contributing
-- Report issues via GitHub Issues
+## 📄 Contribute
+- Report bugs via Issues
 - Pull requests welcome
 - See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for details
 
