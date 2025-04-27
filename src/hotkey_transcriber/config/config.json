@@ -1,5 +1,5 @@
 {
-  "model_size": "large-v3-turbo",
+  "model_size": "medium",
   "interval": 1,
   "language": "de",
   "wait_on_keyboard": 0.02,
@@ -18,59 +18,221 @@
     "distil-large-v3": "Distil Large-v3 (English, ~900MB): schneller als Large-v3, etwas geringere Genauigkeit"
   },
   "language_codes": [
-    ["af", "Afrikaans"],
-    ["ar", "Arabic"],
-    ["az", "Azerbaijani"],
-    ["bg", "Bulgarian"],
-    ["bn", "Bengali"],
-    ["bs", "Bosnian"],
-    ["ca", "Catalan"],
-    ["cs", "Czech"],
-    ["cy", "Welsh"],
-    ["da", "Danish"],
-    ["de", "Deutsch"],
-    ["el", "Greek"],
-    ["en", "English"],
-    ["es", "Spanish"],
-    ["et", "Estonian"],
-    ["fa", "Persian"],
-    ["fi", "Finnish"],
-    ["fr", "French"],
-    ["he", "Hebrew"],
-    ["hi", "Hindi"],
-    ["hr", "Croatian"],
-    ["hu", "Hungarian"],
-    ["hy", "Armenian"],
-    ["id", "Indonesian"],
-    ["is", "Icelandic"],
-    ["it", "Italian"],
-    ["ja", "Japanese"],
-    ["ka", "Georgian"],
-    ["ko", "Korean"],
-    ["lv", "Latvian"],
-    ["lt", "Lithuanian"],
-    ["mk", "Macedonian"],
-    ["ms", "Malay"],
-    ["nl", "Dutch"],
-    ["no", "Norwegian"],
-    ["pl", "Polish"],
-    ["pt", "Portuguese"],
-    ["ro", "Romanian"],
-    ["ru", "Russian"],
-    ["sk", "Slovak"],
-    ["sl", "Slovenian"],
-    ["sq", "Albanian"],
-    ["sr", "Serbian"],
-    ["sv", "Swedish"],
-    ["sw", "Swahili"],
-    ["ta", "Tamil"],
-    ["te", "Telugu"],
-    ["th", "Thai"],
-    ["tl", "Tagalog"],
-    ["tr", "Turkish"],
-    ["uk", "Ukrainian"],
-    ["ur", "Urdu"],
-    ["vi", "Vietnamese"],
-    ["zh", "Chinese"]
+    [
+      "af",
+      "Afrikaans"
+    ],
+    [
+      "ar",
+      "Arabic"
+    ],
+    [
+      "az",
+      "Azerbaijani"
+    ],
+    [
+      "bg",
+      "Bulgarian"
+    ],
+    [
+      "bn",
+      "Bengali"
+    ],
+    [
+      "bs",
+      "Bosnian"
+    ],
+    [
+      "ca",
+      "Catalan"
+    ],
+    [
+      "cs",
+      "Czech"
+    ],
+    [
+      "cy",
+      "Welsh"
+    ],
+    [
+      "da",
+      "Danish"
+    ],
+    [
+      "de",
+      "Deutsch"
+    ],
+    [
+      "el",
+      "Greek"
+    ],
+    [
+      "en",
+      "English"
+    ],
+    [
+      "es",
+      "Spanish"
+    ],
+    [
+      "et",
+      "Estonian"
+    ],
+    [
+      "fa",
+      "Persian"
+    ],
+    [
+      "fi",
+      "Finnish"
+    ],
+    [
+      "fr",
+      "French"
+    ],
+    [
+      "he",
+      "Hebrew"
+    ],
+    [
+      "hi",
+      "Hindi"
+    ],
+    [
+      "hr",
+      "Croatian"
+    ],
+    [
+      "hu",
+      "Hungarian"
+    ],
+    [
+      "hy",
+      "Armenian"
+    ],
+    [
+      "id",
+      "Indonesian"
+    ],
+    [
+      "is",
+      "Icelandic"
+    ],
+    [
+      "it",
+      "Italian"
+    ],
+    [
+      "ja",
+      "Japanese"
+    ],
+    [
+      "ka",
+      "Georgian"
+    ],
+    [
+      "ko",
+      "Korean"
+    ],
+    [
+      "lv",
+      "Latvian"
+    ],
+    [
+      "lt",
+      "Lithuanian"
+    ],
+    [
+      "mk",
+      "Macedonian"
+    ],
+    [
+      "ms",
+      "Malay"
+    ],
+    [
+      "nl",
+      "Dutch"
+    ],
+    [
+      "no",
+      "Norwegian"
+    ],
+    [
+      "pl",
+      "Polish"
+    ],
+    [
+      "pt",
+      "Portuguese"
+    ],
+    [
+      "ro",
+      "Romanian"
+    ],
+    [
+      "ru",
+      "Russian"
+    ],
+    [
+      "sk",
+      "Slovak"
+    ],
+    [
+      "sl",
+      "Slovenian"
+    ],
+    [
+      "sq",
+      "Albanian"
+    ],
+    [
+      "sr",
+      "Serbian"
+    ],
+    [
+      "sv",
+      "Swedish"
+    ],
+    [
+      "sw",
+      "Swahili"
+    ],
+    [
+      "ta",
+      "Tamil"
+    ],
+    [
+      "te",
+      "Telugu"
+    ],
+    [
+      "th",
+      "Thai"
+    ],
+    [
+      "tl",
+      "Tagalog"
+    ],
+    [
+      "tr",
+      "Turkish"
+    ],
+    [
+      "uk",
+      "Ukrainian"
+    ],
+    [
+      "ur",
+      "Urdu"
+    ],
+    [
+      "vi",
+      "Vietnamese"
+    ],
+    [
+      "zh",
+      "Chinese"
+    ]
   ]
 }
