@@ -15,7 +15,7 @@ jobs:
         with: {python-version: "3.13"}
       - run: pip install pyinstaller
       - run: pip install .
-      - run: pyinstaller --noconfirm --onefile --windowed -m hotkey_transcriber.main
+      - run: pyinstaller --noconfirm --onefile --windowed --paths src src/hotkey_transcriber/main.py
       - uses: actions/upload-artifact@v4
         with: {name: hotkey-transcriber-win, path: dist/*.exe}
   linux:
