@@ -5,9 +5,9 @@ import time
 from faster_whisper import WhisperModel, download_model
 from huggingface_hub.utils import HfHubHTTPError
 
-from .keyboard_controller import KeyboardController
-from .speech_recorder import SpeechRecorder
-from .keyboard_listener import KeyBoardListener
+from hotkey_transcriber.keyboard_controller import KeyboardController
+from hotkey_transcriber.speech_recorder import SpeechRecorder
+from hotkey_transcriber.keyboard_listener import KeyBoardListener
 
 
 def _spinner(message, stop_event):
