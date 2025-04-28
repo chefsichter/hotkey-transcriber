@@ -8,9 +8,9 @@ from pathlib import Path
 
 from hotkey_transcriber.resources_manger import get_microphone_icon_path
 
-from .object_loader import load_model, load_speech_recorder, load_keyboard_listener
-from .device_detector import detect_device
-from .config.config_manger import load_config, save_config
+from hotkey_transcriber.object_loader import load_model, load_speech_recorder, load_keyboard_listener
+from hotkey_transcriber.device_detector import detect_device
+from hotkey_transcriber.config.config_manger import load_config, save_config
 
 
 # ─────────────────────── Konfiguration ────────────────────────

@@ -1,7 +1,7 @@
 import threading, queue, numpy as np, sounddevice as sd
 from faster_whisper import WhisperModel
 
-from .keyboard_controller import KeyboardController
+from hotkey_transcriber.keyboard_controller import KeyboardController
 
 class SpeechRecorder:
     def __init__(self, model: WhisperModel, keyboard_controller: KeyboardController, 
