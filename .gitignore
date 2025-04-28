@@ -1,5 +1,6 @@
 .venv/
 build/
+dist/
 __pycache__/
 config/__pycache__/
 CTranslate2-rocm/
@@ -9,3 +10,6 @@ src/hotkey_transcriber.egg-info/
 .vscode/
 logs/
 AppDir/
+Hotkey_Transcriber-x86_64.AppImage
+hotkey-transcriber.spec
+linuxdeploy-x86_64.AppImage

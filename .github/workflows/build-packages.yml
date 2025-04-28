@@ -1,5 +1,5 @@
+# .github/workflows/build.yml
 name: Build Packages
-
 on:
   push:
     tags:
@@ -7,63 +7,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux-appimage:
-    name: Build Linux AppImage
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller
-          pip install .
-      - name: Build executable with PyInstaller
-        run: |
-          pyinstaller --onefile src/hotkey_transcriber/main.py --name hotkey-transcriber
-      - name: Download linuxdeploy
-        run: |
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-      - name: Prepare AppDir
-        run: |
-          mkdir -p AppDir/usr/bin
-          cp dist/hotkey-transcriber AppDir/usr/bin/
-          cp resources/icon/hotkey-transcriber.png AppDir/
-          cp resources/linux/hotkey_transcriber.desktop AppDir/
-      - name: Build AppImage
-        run: |
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
-      - name: Upload AppImage
-        uses: actions/upload-artifact@v3
-        with:
-          name: linux-appimage
-          path: '*.AppImage'
-
-  build-windows-exe:
-    name: Build Windows EXE
+  windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: |
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install pyinstaller
+      - run: pip install .
+      - run: pyinstaller --noconfirm --onefile --windowed --paths src src/hotkey_transcriber/main.py
+      - uses: actions/upload-artifact@v4
+        with: {name: hotkey-transcriber-win, path: dist/*.exe}
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
           pip install .
-      - name: Build executable with PyInstaller
-        run: |
-          pyinstaller --onefile src\\hotkey_transcriber\\main.py --name hotkey-transcriber.exe
-      - name: Upload EXE
-        uses: actions/upload-artifact@v3
-        with:
-          name: windows-exe
-          path: dist/hotkey-transcriber.exe
+      - run: pyinstaller --noconfirm --onefile src/hotkey_transcriber/main.py --name hotkey-transcriber
+      - run: |
+          mkdir -p AppDir/usr/bin
+          cp dist/hotkey-transcriber AppDir/usr/bin/
+          cp src/hotkey_transcriber/resources/icon/microphone.png AppDir/
+          cp desktop_files/linux/hotkey-transcriber.desktop AppDir/
+      - run: ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+      - uses: actions/upload-artifact@v4
+        with: {name: hotkey-transcriber-linux, path: dist/linux/*}
