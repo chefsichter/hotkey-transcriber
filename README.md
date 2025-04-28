@@ -36,26 +36,9 @@ A GPU is recommended for smooth, almost lag-free transcription:
 
 Without a GPU (CPU-only), transcription is also possible, but significantly slower and with a latency of several seconds per recording interval.
 
-## ⚙️ Installation
-  
-### 🎉 Simple installation
-
-Go to the GitHub releases page: https://github.com/chefsichter/hotkey-transcriber/releases and download the package for your system.
-
-- Linux (AppImage):
-
-  ```bash
-  chmod +x hotkey-transcriber-*.AppImage
-  ./hotkey-transcriber-*.AppImage
-  ```
-
-- Windows (EXE):
-
-  Download the file `hotkey-transcriber-*.exe` and execute it by double-clicking.
-
 ### 🧰 Manual installation
 
-#### Install pipx
+install #### pipx
 
 pipx is required to install the application in isolation:
 
