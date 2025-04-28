@@ -36,23 +36,6 @@ Für eine flüssige, nahezu verzögerungsfreie Transkription wird eine GPU empfo
 
 Ohne GPU (CPU-only) ist Transkription ebenfalls möglich, jedoch deutlich langsamer und mit einer Latenz von mehreren Sekunden pro Aufnahmeintervall.
 
-## ⚙️ Installation
-  
-### 🎉 Einfache Installation
-
-Gehe zur GitHub Releases Seite: https://github.com/chefsichter/hotkey-transcriber/releases und lade das Paket für dein System herunter.
-
-- Linux (AppImage):
-
-  ```bash
-  chmod +x hotkey-transcriber-*.AppImage
-  ./hotkey-transcriber-*.AppImage
-  ```
-
-- Windows (EXE):
-
-  Lade die Datei `hotkey-transcriber-*.exe` herunter und führe sie per Doppelklick aus.
-
 ### 🧰 Manuelle Installation
 
 #### pipx installieren
