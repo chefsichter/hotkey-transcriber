@@ -11,9 +11,11 @@ from pathlib import Path
 ICON = "microphone.png"
 
 def main():
-    resources_folder_path = Path(__file__).resolve().parent.parent
-    desktop_src = resources_folder_path / "linux" / "hotkey-transcriber.desktop"
-    icon_src = resources_folder_path / "icon" / f"{ICON}"
+    desktop_files_path = Path(__file__).resolve().parent.parent
+    root = desktop_files_path.parent
+    resources_path = root / "src" / "hotkey_transcriber" / "resources"
+    desktop_src = desktop_files_path / "linux" / "hotkey-transcriber.desktop"
+    icon_src = resources_path / "icon" / f"{ICON}"
 
     if not desktop_src.is_file():
         print(f"Error: Desktop file not found: {desktop_src}", file=sys.stderr)
