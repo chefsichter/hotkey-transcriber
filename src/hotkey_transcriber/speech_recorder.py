@@ -29,7 +29,8 @@ class SpeechRecorder:
         self.audio_q = queue.Queue()
         # Synchronisations-Primitive für den Transkriptions-Loop
         self.event = threading.Event()
-        self.lock = threading.Lock()
+        self.start_stop_lock = threading.Lock()
+        self.print_lock = threading.Lock()
         self.transcriber_thread = None
         self.dot_printer_thread = None
 
@@ -68,26 +69,35 @@ class SpeechRecorder:
             self.audio_q.put(indata.copy())
 
     def start_dot_printer_thread(self):
+        """
+        Startet einen Daemon-Thread, der ein Emoji und Punkte ausgibt,
+        bis clear_dot_printing() das Stop-Event setzt.
+        """
         self.clear_rec_symbol()
-        self.continue_dot_printing = True
+        # Event zum Stoppen des Dot-Printers
+        self.dot_stop_event = threading.Event()
         self.char_count = 1
 
         def dot_printer():
-            # Punkte ausgeben, bis die Transkription abgeschlossen ist
+            # Ausgabe des Start-Emojis
             self.keyb_c.paste("📝", end="")
-            while self.continue_dot_printing:
-                self.keyb_c.write('.', end="", interval=0.5)  # Punkt ausgeben
+            # Punkte schreiben, bis das Stop-Event gesetzt wird
+            while not self.dot_stop_event.is_set():
+                self.keyb_c.write('.', end="", interval=0.5)
                 self.char_count += 1
-            # Entferne die ausgegebenen Punkte und das Emoji
+            # Entferne das Emoji und alle Punkte
             self.keyb_c.backspace(self.char_count)
 
-        # Als Daemon-Thread, damit er bei Programmende nicht blockiert
         self.dot_printer_thread = threading.Thread(target=dot_printer, daemon=True)
         self.dot_printer_thread.start()
 
     def clear_dot_printing(self):
-        if not self.running: # when user stopped, write dots for transcription waiting time
-            self.continue_dot_printing = False
+        """
+        Stoppt den Dot-Printer-Thread durch Setzen des Stop-Events
+        und wartet auf dessen Beendigung.
+        """
+        if hasattr(self, 'dot_stop_event'):
+            self.dot_stop_event.set()
             if self.dot_printer_thread:
                 self.dot_printer_thread.join()
 
@@ -163,7 +173,7 @@ class SpeechRecorder:
         self.clear_dot_printing()
 
     def start(self):
-        with self.lock:
+        with self.start_stop_lock:
             if self.running:
                 return
             self.running = True
@@ -172,7 +182,7 @@ class SpeechRecorder:
             self.transcriber_thread.start()
 
     def stop(self):
-        with self.lock:
+        with self.start_stop_lock:
             if not self.running:
                 return
             self.running = False
