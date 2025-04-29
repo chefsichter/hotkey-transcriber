@@ -111,11 +111,10 @@ class SpeechRecorder:
             self.rec_mark_printed = False
             self.keyb_c.undo()
 
-    def clear_partial_transcription(self, transcription_len=None):
+    def clear_last_text(self):
         if self.transcription_printed:
-            self.keyb_c.undo()
             self.transcription_printed = False
-            # self.keyb_c.backspace(transcription_len)
+            self.keyb_c.backspace(len(self.last_text))
 
     def _live_loop(self):
         self.keyb_c.save_clipboard()
@@ -164,7 +163,7 @@ class SpeechRecorder:
                 # nur Tail anhängen
                 self.keyb_c.paste(full[len(self.last_text):])
             else:
-                self.clear_partial_transcription()
+                self.clear_last_text()
                 self.keyb_c.paste(full)
 
             self.transcription_printed = True
