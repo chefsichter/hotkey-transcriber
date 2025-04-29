@@ -24,13 +24,12 @@ class SpeechRecorder:
         self.rec_mark_printed = False
         self.is_transcribing = False
         self.transcription_printed = False
-        self.last_text  = ""
-        self.audio_q    = queue.Queue()
-        self.buffer     = []
-        
-        self.event      = threading.Event()
-        self.lock       = threading.Lock()
-        self.recorder_thread    = None
+        self.last_text = ""
+        # Queue für Audio-Chunks aus dem Callback
+        self.audio_q = queue.Queue()
+        # Synchronisations-Primitive für den Transkriptions-Loop
+        self.event = threading.Event()
+        self.lock = threading.Lock()
         self.transcriber_thread = None
         self.dot_printer_thread = None
 
@@ -42,18 +41,19 @@ class SpeechRecorder:
             blocksize=int(16_000 * self.chunk_ms / 1000),
             callback=self._audio_callback,
         )
+        # Initiale Variablen zurücksetzen und Stream starten
         self.clear_variables()
         self.stream.start()
 
     def clear_variables(self):
-        self.running    = False
+        self.running = False
         self.rec_mark_printed = False
         self.is_transcribing = False
         self.transcription_printed = False
         self.last_text = ""
+        # Alle noch im Queue wartenden Chunks verwerfen
         while not self.audio_q.empty():
             self.audio_q.get_nowait()
-        self.buffer.clear()
         self.event.clear()
 
     def set_interval(self, interval: float):
@@ -66,14 +66,6 @@ class SpeechRecorder:
     def _audio_callback(self, indata, frames, ti, status):
         if self.running:
             self.audio_q.put(indata.copy())
-
-    def _recorder(self):
-        self.buffer = []
-        while self.running:
-            try:
-                self.buffer.append(self.audio_q.get(timeout=0.1))
-            except queue.Empty:
-                pass
 
     def start_dot_printer_thread(self):
         self.clear_rec_symbol()
@@ -118,15 +110,22 @@ class SpeechRecorder:
     def _live_loop(self):
         self.keyb_c.save_clipboard()
         self.print_rec_symbol()
+        chunks = []
         while self.running:
+            # Warte auf das nächste Intervall oder Stop-Signal
             self.event.wait(timeout=self.interval)
-
-            if not self.buffer:
-                continue
-
-            snap = list(self.buffer)
+            # Chunks aus Audio-Queue bis zur Leere sammeln
             try:
-                audio = np.concatenate(snap, axis=0)[:,0]
+                while True:
+                    chunks.append(self.audio_q.get_nowait())
+            except queue.Empty:
+                pass
+            # Falls keine neuen Daten vorliegen, überspringen
+            if not chunks:
+                continue
+            # Monokanalisierung und Zusammenfassung
+            try:
+                audio = np.concatenate(chunks, axis=0)[:, 0]
             except ValueError:
                 continue
 
@@ -138,7 +137,7 @@ class SpeechRecorder:
                 self.is_transcribing = True
                 segments = list(seg_iterator)
             except RuntimeError as e:
-                print("Transkription fehlgeschlagen: {e}")
+                print(f"Transkription fehlgeschlagen: {e}")
                 break
             finally:
                 self.is_transcribing = False
@@ -155,7 +154,7 @@ class SpeechRecorder:
                 # nur Tail anhängen
                 self.keyb_c.paste(full[len(self.last_text):])
             else:
-                self.clear_partial_transcription()  
+                self.clear_partial_transcription()
                 self.keyb_c.paste(full)
 
             self.transcription_printed = True
@@ -168,9 +167,8 @@ class SpeechRecorder:
             if self.running:
                 return
             self.running = True
-            self.recorder_thread    = threading.Thread(target=self._recorder, daemon=True)
+            # Transkriptions-Thread starten (Audio-Daten kommen über self.audio_q)
             self.transcriber_thread = threading.Thread(target=self._live_loop, daemon=True)
-            self.recorder_thread.start()
             self.transcriber_thread.start()
 
     def stop(self):
@@ -178,13 +176,12 @@ class SpeechRecorder:
             if not self.running:
                 return
             self.running = False
-            # Transkription kann starten, wecke das Event
+            # Stop-Signal an den Live-Loop senden
             self.event.set()
-            # Progress-Indikator (Punkte) starten
+            # Progress-Indikator (Punkte) anzeigen, falls Transkription noch läuft
             if self.is_transcribing:
                 self.start_dot_printer_thread()
-            # Warte auf Ende der Aufnahme- und Transkriptions-Threads
-            self.recorder_thread.join()
+            # Auf Ende des Transkriptions-Threads warten
             self.transcriber_thread.join()
             print("✋ STOP")
             self.clear_variables()
