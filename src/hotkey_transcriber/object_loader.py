@@ -58,7 +58,7 @@ def load_model(size, device, compute_type, cache_dir=None):
 
     stop_event.set()
     spinner_thread.join()
-    print(f"✅  Whisper-Modell '{size}' bereit.", flush=True)
+    print(f"✅  Whisper-Modell mit '{size}' auf '{device} bereit.", flush=True)
 
     return model
  
