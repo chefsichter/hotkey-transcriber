@@ -30,6 +30,7 @@ DEFAULT_TRAY_TIP    = "Live-Diktat (Alt+R oder Tray-Menü)"
 
 # ───────── Whisper-Modell laden ──────────────────────────────
 DEVICE = detect_device()
+# DEVICE = 'cpu'
 COMPUTE_TYPE = "float16" if DEVICE == 'cuda' else "float32"
 
 model = load_model(size=MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
