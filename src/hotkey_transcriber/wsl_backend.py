@@ -1,4 +1,4 @@
-import atexit
+﻿import atexit
 import json
 import os
 import shlex
@@ -56,7 +56,7 @@ def _repair_and_download(model_name, model_path):
             shutil.rmtree(model_path, ignore_errors=True)
     except Exception:
         pass
-    return download_model(model_name, local_files_only=False, force_download=True)
+    return download_model(model_name, local_files_only=False)
 
 
 def _resolve_model_path(model_name):
@@ -67,6 +67,10 @@ def _resolve_model_path(model_name):
 
     if not _snapshot_has_model_bin(model_path):
         model_path = _repair_and_download(model_name, model_path)
+        if not _snapshot_has_model_bin(model_path):
+            raise RuntimeError(
+                f"Model '{model_name}' does not contain model.bin and is not a faster-whisper/ctranslate2 model."
+            )
 
     return model_path
 
@@ -85,6 +89,10 @@ def main():
     except RuntimeError:
         # Final safety net for stale snapshots or backend issues.
         model_path = _repair_and_download(args.model, model_path)
+        if not _snapshot_has_model_bin(model_path):
+            raise RuntimeError(
+                f"Model '{args.model}' does not contain model.bin and is not a faster-whisper/ctranslate2 model."
+            )
         model = WhisperModel(model_path, device=device, compute_type=compute_type, local_files_only=True)
 
     for line in sys.stdin:
@@ -161,11 +169,7 @@ class WslWhisperModel:
         self._script_path.write_text(SERVER_SCRIPT, encoding="utf-8")
 
         self._ensure_wsl_backend(force=False)
-        try:
-            self._start_server()
-        except Exception:
-            self._ensure_wsl_backend(force=True)
-            self._start_server()
+        self._start_server()
         atexit.register(self.close)
 
     def _ensure_wsl_backend(self, force=False):
@@ -188,8 +192,18 @@ class WslWhisperModel:
         script_wsl = _win_to_wsl_path(str(self._script_path))
         script_arg = shlex.quote(script_wsl)
         model_arg = shlex.quote(self.model_name)
+        venv_lib = "$HOME/.hotkey-transcriber-wsl/lib"
+        rocm_llvm_lib = "/opt/rocm-7.2.0/lib/llvm/lib"
+        token_exports = []
+        for token_var in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+            token_val = os.environ.get(token_var)
+            if token_val:
+                token_exports.append(f"export {token_var}={shlex.quote(token_val)}")
+        token_prefix = (" && ".join(token_exports) + " && ") if token_exports else ""
         cmd = (
             "source ~/.hotkey-transcriber-wsl/bin/activate && "
+            f"export LD_LIBRARY_PATH={venv_lib}:{rocm_llvm_lib}:$LD_LIBRARY_PATH && "
+            f"{token_prefix}"
             f"exec python3 -u {script_arg} --model {model_arg}"
         )
 
@@ -202,7 +216,7 @@ class WslWhisperModel:
             bufsize=1,
         )
 
-        reply = self._request({"cmd": "ping"}, timeout=60)
+        reply = self._request({"cmd": "ping"}, timeout=600)
         if not reply.get("ok"):
             raise RuntimeError(f"WSL-Backend konnte nicht gestartet werden: {reply}")
 
@@ -295,3 +309,4 @@ class WslWhisperModel:
         except Exception:
             pass
         self._server = None
+
