@@ -31,10 +31,60 @@ With Hotkey Transcriber you can transcribe in real time (Speech-To-Text) using a
 Hotkey Transcriber uses `faster-whisper` in the background, an optimized whisper implementation for real-time speech recognition.
 
 A GPU is recommended for smooth, almost lag-free transcription:
-  - NVIDIA GPUs with CUDA drivers (&gt;=11.7) or
-  - AMD GPUs with ROCm support enabled.
+  - NVIDIA GPUs with CUDA drivers (&gt;=11.7).
+  - AMD GPUs via ROCm are currently a Linux-focused path for this stack (`faster-whisper`/CTranslate2), not a native Windows setup.
 
 Without a GPU (CPU-only), transcription is also possible, but significantly slower and with a latency of several seconds per recording interval.
+
+On first start, the selected Whisper model is downloaded once from Hugging Face and then reused from the local cache. An internet connection is required for this initial download.
+
+On Windows, when an AMD GPU is detected, the app now prepares and uses a WSL backend automatically. You can override this with `HOTKEY_TRANSCRIBER_BACKEND` (`auto`, `native`, `wsl_amd`).
+
+### Windows + AMD (recommended, simplest path)
+
+Automated setup (recommended):
+
+1. Install AMD Software: Adrenalin Edition for Windows (includes WSL support), then reboot.
+2. Open elevated PowerShell in this repo and run:
+   ```powershell
+   .\tools\setup_wsl_amd.ps1
+   ```
+3. Start:
+   ```powershell
+   $env:HOTKEY_TRANSCRIBER_BACKEND="auto"
+   hotkey-transcriber
+   ```
+
+Manual setup (step-by-step):
+
+1. Install WSL2 + Ubuntu (once, elevated PowerShell):
+   ```powershell
+   wsl --install -d Ubuntu
+   ```
+   Reboot if prompted.
+
+2. In Ubuntu (WSL), install required Python venv packages:
+   ```bash
+   sudo apt update
+   sudo apt install -y python3.12-venv python3-pip
+   ```
+
+3. Install the app in Windows:
+   ```powershell
+   pipx install git+https://github.com/chefsichter/hotkey-transcriber
+   ```
+
+4. Start with AMD WSL backend:
+   ```powershell
+   $env:HOTKEY_TRANSCRIBER_BACKEND="wsl_amd"
+   hotkey-transcriber
+   ```
+
+5. Verify backend:
+   - Expected log: `WSL-Backend bereit (device=cuda, compute_type=float16)` on ROCm/HIP builds.
+   - If you see `Fallback auf CPU-Backend`, check step 2 again in WSL.
+   - If you see an error mentioning missing `model.bin`, restart once. The backend now repairs broken Hugging Face snapshots and re-downloads the model.
+   - If backend starts with `device=cpu`, your WSL `ctranslate2` build does not have HIP support yet.
 
 ### 🧰 Manual installation
 

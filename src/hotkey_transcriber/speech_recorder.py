@@ -1,12 +1,11 @@
 import pyautogui
 import threading, queue, numpy as np, sounddevice as sd
 import time
-from faster_whisper import WhisperModel
  
 from hotkey_transcriber.keyboard_controller import KeyboardController
 
 class SpeechRecorder:
-    def __init__(self, model: WhisperModel, keyboard_controller: KeyboardController, 
+    def __init__(self, model, keyboard_controller: KeyboardController, 
                  channels: int, chunk_ms: int,
                  interval: float, language: str, rec_mark: str):
         # Objekte übergeben
@@ -192,6 +191,6 @@ class SpeechRecorder:
                 self.start_dot_printer_thread()
             # Auf Ende des Transkriptions-Threads warten
             self.transcriber_thread.join()
-            print("✋ STOP")
+            print("STOP")
             self.clear_variables()
             self.keyb_c.load_clipboard()
