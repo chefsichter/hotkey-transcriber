@@ -101,7 +101,7 @@ pipx is required to install the application in isolation:
 2. Release `R` to stop the recording. The recognized text is pasted and copied.
 3. You can use the tray menu to change the transcription interval, the recognition language or exit the program.
 4. Model selection (tray icon → "Select model"):
-    - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+    - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `primeline/whisper-large-v3-turbo-german`
     - Smaller models: reduced VRAM &amp; CPU requirements → faster transcription (slightly lower accuracy)
     - VRAM recommendation: `tiny`/`base`: 2-4 GB; `small`/`medium`/`large*`: ≥6 GB
 
