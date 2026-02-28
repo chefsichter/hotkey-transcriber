@@ -103,7 +103,7 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
 2. Lasse `R` los, um die Aufnahme zu stoppen. Der erkannte Text wird eingefügt und kopiert.
 3. Über das Tray-Menü kannst du das Transkriptions-Intervall, die Erkennungssprache ändern oder das Programm beenden.
 4. Modellwahl (Tray-Icon → „Modell wählen“):
-    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `primeline/whisper-large-v3-turbo-german`
     - Kleinere Modelle: reduzierter VRAM- & CPU-Bedarf → schnellere Transkription (leicht geringere Genauigkeit)
     - VRAM-Empfehlung: `tiny`/`base`: 2–4 GB; `small`/`medium`/`large*`: ≥6 GB
 
