@@ -46,6 +46,7 @@ Auf Windows wird bei erkannter AMD-GPU automatisch ein WSL-Backend vorbereitet u
 
 pipx ist notwendig, um die Anwendung isoliert zu installieren:
 
+1. pipx:
 - Auf Linux:
   ```bash
   python3 -m pip install --user pipx
@@ -64,18 +65,9 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
   py -m pipx ensurepath
   # PowerShell neu starten
   ```
-1. Direkte Installation aus dem Git-Repository (einfach):
+2. Direkte Installation aus dem Git-Repository:
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
-   ```
-
-   oder
-
-2. Manuelle Installation aus dem lokalen Klon:
-   ```bash
-   git clone https://github.com/chefsichter/hotkey-transcriber.git
-   cd hotkey-transcriber
-   pipx install .
    ```
 
 ### Windows 11 + AMD (ROCm über WSL)
@@ -103,7 +95,7 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
 2. Lasse `R` los, um die Aufnahme zu stoppen. Der erkannte Text wird eingefügt und kopiert.
 3. Über das Tray-Menü kannst du das Transkriptions-Intervall, die Erkennungssprache ändern oder das Programm beenden.
 4. Modellwahl (Tray-Icon → „Modell wählen“):
-    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `primeline/whisper-large-v3-turbo-german`
+    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
     - Kleinere Modelle: reduzierter VRAM- & CPU-Bedarf → schnellere Transkription (leicht geringere Genauigkeit)
     - VRAM-Empfehlung: `tiny`/`base`: 2–4 GB; `small`/`medium`/`large*`: ≥6 GB
 
