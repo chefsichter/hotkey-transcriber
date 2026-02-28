@@ -40,53 +40,7 @@ Beim ersten Start wird das gewählte Whisper-Modell einmalig von Hugging Face he
 
 Auf Windows wird bei erkannter AMD-GPU automatisch ein WSL-Backend vorbereitet und verwendet. Das Verhalten lässt sich über `HOTKEY_TRANSCRIBER_BACKEND` steuern (`auto`, `native`, `wsl_amd`).
 
-### Windows + AMD (empfohlen, einfachster Weg)
-
-Automatisches Setup (empfohlen):
-
-1. AMD Software: Adrenalin Edition für Windows installieren (inkl. WSL-Support), danach neu starten.
-2. PowerShell als Administrator im Repo öffnen und ausführen:
-   ```powershell
-   .\tools\setup_wsl_amd.ps1
-   ```
-3. Starten:
-   ```powershell
-   $env:HOTKEY_TRANSCRIBER_BACKEND="auto"
-   hotkey-transcriber
-   ```
-
-Manuelles Setup (Schritt für Schritt):
-
-1. WSL2 + Ubuntu installieren (einmalig, PowerShell als Admin):
-   ```powershell
-   wsl --install -d Ubuntu
-   ```
-   Falls Windows neu starten verlangt, bitte neu starten.
-
-2. In Ubuntu (WSL) die benötigten Python-venv-Pakete installieren:
-   ```bash
-   sudo apt update
-   sudo apt install -y python3.12-venv python3-pip
-   ```
-
-3. App unter Windows installieren:
-   ```powershell
-   pipx install git+https://github.com/chefsichter/hotkey-transcriber
-   ```
-
-4. Mit AMD-WSL-Backend starten:
-   ```powershell
-   $env:HOTKEY_TRANSCRIBER_BACKEND="wsl_amd"
-   hotkey-transcriber
-   ```
-
-5. Backend prüfen:
-   - Erwartete Meldung: `WSL-Backend bereit (device=cuda, compute_type=float16)` bei ROCm/HIP-Builds.
-   - Wenn `Fallback auf CPU-Backend` erscheint, Schritt 2 in WSL prüfen.
-   - Bei Fehlern mit fehlender `model.bin`: einmal neu starten. Das Backend repariert kaputte Hugging-Face-Snapshots jetzt automatisch und lädt das Modell neu.
-   - Wenn das Backend mit `device=cpu` startet, hat dein WSL-`ctranslate2` aktuell noch keinen HIP-Support.
-
-### 🧰 Manuelle Installation
+### 🧰 Standardinstallation (Default)
 
 #### pipx installieren
 
@@ -122,6 +76,19 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    git clone https://github.com/chefsichter/hotkey-transcriber.git
    cd hotkey-transcriber
    pipx install .
+   ```
+
+### Windows 11 + AMD (ROCm über WSL)
+
+1. AMD Software: Adrenalin Edition für Windows installieren (inkl. WSL-Support), danach neu starten.
+2. PowerShell als Administrator im Repo öffnen und ausführen:
+   ```powershell
+   .\tools\setup_wsl_amd.ps1
+   ```
+3. Starten:
+   ```powershell
+   $env:HOTKEY_TRANSCRIBER_BACKEND="auto"
+   hotkey-transcriber
    ```
 
 ## 🪟 Programm starten
