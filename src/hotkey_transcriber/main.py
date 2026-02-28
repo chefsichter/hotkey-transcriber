@@ -33,6 +33,7 @@ MODEL_CHOICES = [
     "large-v3",
     "large-v3-turbo",
     "distil-large-v3",
+    "TheChola/whisper-large-v3-turbo-german-faster-whisper",
 ]
 
 
@@ -104,7 +105,6 @@ def main():
             return slot
 
         slot = make_info_slot(action)
-        action.hovered.connect(slot)
         action.triggered.connect(slot)
 
         action.setCheckable(True)
@@ -116,13 +116,25 @@ def main():
                 was_running = recorder.running
                 if was_running:
                     recorder.stop()
+                try:
+                    new_model = load_model(
+                        size=model_name,
+                        device=device,
+                        compute_type=compute_type,
+                        backend=backend,
+                    )
+                except Exception as exc:
+                    tray.showMessage(
+                        "Modellfehler",
+                        f"Modell konnte nicht geladen werden: {model_name}",
+                        QSystemTrayIcon.Warning,
+                        3000,
+                    )
+                    print(f"Modellwechsel fehlgeschlagen fuer '{model_name}': {exc}")
+                    if was_running:
+                        recorder.start()
+                    return
 
-                new_model = load_model(
-                    size=model_name,
-                    device=device,
-                    compute_type=compute_type,
-                    backend=backend,
-                )
                 recorder.model = new_model
                 config["model_size"] = model_name
                 save_config(config)
@@ -215,3 +227,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
