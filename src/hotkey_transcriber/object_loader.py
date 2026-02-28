@@ -3,11 +3,13 @@ import threading
 import time
 
 from faster_whisper import WhisperModel, download_model
+from huggingface_hub.errors import LocalEntryNotFoundError
 from huggingface_hub.utils import HfHubHTTPError
 
 from hotkey_transcriber.keyboard_controller import KeyboardController
 from hotkey_transcriber.speech_recorder import SpeechRecorder
 from hotkey_transcriber.keyboard_listener import KeyBoardListener
+from hotkey_transcriber.wsl_backend import WslWhisperModel
 
 
 def _spinner(message, stop_event):
@@ -20,7 +22,15 @@ def _spinner(message, stop_event):
     # Clear the line after done
     print(' ' * (len(message) + 2), end='\r', flush=True)
 
-def load_model(size, device, compute_type, cache_dir=None):
+def load_model(size, device, compute_type, cache_dir=None, backend="native"):
+    if backend == "wsl_amd":
+        try:
+            return WslWhisperModel(model_name=size)
+        except Exception as exc:
+            print(f"WSL-Backend fehlgeschlagen ({exc}). Fallback auf CPU-Backend.")
+            device = "cpu"
+            compute_type = "float32"
+
     # 1) Versuch, nur aus dem Cache zu laden
     try:
         model_path = download_model(
@@ -29,15 +39,15 @@ def load_model(size, device, compute_type, cache_dir=None):
             cache_dir=cache_dir
         )
         cached = True
-    except (ValueError, HfHubHTTPError):
+    except (ValueError, HfHubHTTPError, LocalEntryNotFoundError):
         # 2) Noch nicht da → Download
-        print(f"⏬  Download Whisper-Modell '{size}'…")
+        print(f"Download Whisper-Modell '{size}'...")
         model_path = download_model(
             size_or_id=size,
             local_files_only=False,
             cache_dir=cache_dir
         )
-        print(f"✅  Modell '{size}' heruntergeladen.")
+        print(f"Modell '{size}' heruntergeladen.")
         cached = False
 
     # 3) Spinner nur fürs lokale Laden
@@ -58,7 +68,7 @@ def load_model(size, device, compute_type, cache_dir=None):
 
     stop_event.set()
     spinner_thread.join()
-    print(f"✅  Whisper-Modell mit '{size}' auf '{device} bereit.", flush=True)
+    print(f"Whisper-Modell '{size}' auf '{device}' bereit.", flush=True)
 
     return model
  
@@ -85,7 +95,7 @@ def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, interval, 
     )
     stop_event.set()
     spinner_thread.join()
-    print("✅  SpeechRecorder bereit.", flush=True)
+    print("SpeechRecorder bereit.", flush=True)
     return recorder
 
 def load_keyboard_listener(recorder):
@@ -106,5 +116,5 @@ def load_keyboard_listener(recorder):
     hotkey.start()
     stop_event.set()
     spinner_thread.join()
-    print("✅  KeyBoardListener bereit.", flush=True)
+    print("KeyBoardListener bereit.", flush=True)
     return hotkey
