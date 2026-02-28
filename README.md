@@ -44,6 +44,7 @@ On Windows, when an AMD GPU is detected, the app now prepares and uses a WSL bac
 
 pipx is required to install the application in isolation:
 
+1. pipx:
 - On Linux:
   ```bash
   python3 -m pip install --user pipx
@@ -62,18 +63,9 @@ pipx is required to install the application in isolation:
   py -m pipx ensurepath
   # Restart PowerShell
   ```
-1. Direct installation from the Git repository (simple):
+2. Direct installation from the Git repository:
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
-   ```
-
-   or
-
-2. Manual installation from the local clone:
-   ```bash
-   git clone https://github.com/chefsichter/hotkey-transcriber.git
-   cd hotkey-transcriber
-   pipx install .
    ```
 
 ### Windows 11 + AMD (ROCm via WSL)
@@ -101,7 +93,7 @@ pipx is required to install the application in isolation:
 2. Release `R` to stop the recording. The recognized text is pasted and copied.
 3. You can use the tray menu to change the transcription interval, the recognition language or exit the program.
 4. Model selection (tray icon → "Select model"):
-    - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `primeline/whisper-large-v3-turbo-german`
+    - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
     - Smaller models: reduced VRAM &amp; CPU requirements → faster transcription (slightly lower accuracy)
     - VRAM recommendation: `tiny`/`base`: 2-4 GB; `small`/`medium`/`large*`: ≥6 GB
 
