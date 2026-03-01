@@ -16,7 +16,6 @@ config = load_config()
 MODEL_SIZE = config.get("model_size", "large-v3")
 MODEL_INFOS = config.get("model_infos", {})
 LANGUAGE_CODES = config.get("language_codes", [["de", "Deutsch"], ["en", "English"]])
-TRANSCRIBE_INTERVAL = config.get("interval", 1)
 WAIT_ON_KEYBOARD = config.get("wait_on_keyboard", 0.02)
 LANGUAGE = config.get("language", "de")
 REC_MARK = config.get("rec_mark", "🔴 REC")
@@ -55,7 +54,6 @@ def _init_runtime():
         wait_on_keyboard=WAIT_ON_KEYBOARD,
         channels=CHANNELS,
         chunk_ms=CHUNK_MS,
-        interval=TRANSCRIBE_INTERVAL,
         language=LANGUAGE,
         rec_mark=REC_MARK,
     )
@@ -181,33 +179,6 @@ def main():
         action.triggered.connect(make_lang_slot(code, label))
         lang_group.addAction(action)
         language_menu.addAction(action)
-
-    interval_menu = menu.addMenu("Intervall")
-    group = QActionGroup(menu)
-    group.setExclusive(True)
-    for val in [0.2, 0.5, 1, 2, 3, 5, 10]:
-        action = QAction(f"{val}s")
-        action.setCheckable(True)
-        if recorder.interval == val:
-            action.setChecked(True)
-
-        def make_slot(v):
-            def slot():
-                recorder.set_interval(v)
-                config["interval"] = v
-                save_config(config)
-                tray.showMessage(
-                    "Intervall geaendert",
-                    f"Neues Intervall: {v} Sekunden",
-                    QSystemTrayIcon.Information,
-                    1500,
-                )
-
-            return slot
-
-        action.triggered.connect(make_slot(val))
-        group.addAction(action)
-        interval_menu.addAction(action)
 
     menu.addSeparator()
 

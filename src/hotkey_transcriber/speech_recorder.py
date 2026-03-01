@@ -1,39 +1,30 @@
-import pyautogui
-import threading, queue, numpy as np, sounddevice as sd
-import time
- 
+import threading
+import queue
+import numpy as np
+import sounddevice as sd
+
 from hotkey_transcriber.keyboard_controller import KeyboardController
 
+
 class SpeechRecorder:
-    def __init__(self, model, keyboard_controller: KeyboardController, 
+    def __init__(self, model, keyboard_controller: KeyboardController,
                  channels: int, chunk_ms: int,
-                 interval: float, language: str, rec_mark: str):
-        # Objekte übergeben
-        self.model      = model
+                 language: str, rec_mark: str):
+        self.model = model
         self.keyb_c = keyboard_controller
-        # Variablen für Audiostream setzen
         self.channels = channels
         self.chunk_ms = chunk_ms
-        
-        self.interval   = interval
-        self.language   = language
-        self.rec_mark   = rec_mark
+        self.language = language
+        self.rec_mark = rec_mark
 
-        self.running    = False
+        self.running = False
         self.rec_mark_printed = False
-        self.is_transcribing = False
-        self.transcription_printed = False
-        self.last_text = ""
-        # Queue für Audio-Chunks aus dem Callback
-        self.audio_q = queue.Queue()
-        # Synchronisations-Primitive für den Transkriptions-Loop
-        self.event = threading.Event()
         self.start_stop_lock = threading.Lock()
-        self.print_lock = threading.Lock()
-        self.transcriber_thread = None
+        self.audio_q = queue.Queue()
+
+        self._transcribe_thread = None
         self.dot_printer_thread = None
 
-        # Audio-Stream starten
         self.stream = sd.InputStream(
             samplerate=16_000,
             channels=1,
@@ -41,24 +32,7 @@ class SpeechRecorder:
             blocksize=int(16_000 * self.chunk_ms / 1000),
             callback=self._audio_callback,
         )
-        # Initiale Variablen zurücksetzen und Stream starten
-        self.clear_variables()
         self.stream.start()
-
-    def clear_variables(self):
-        self.running = False
-        self.rec_mark_printed = False
-        self.is_transcribing = False
-        self.transcription_printed = False
-        self.last_text = ""
-        # Alle noch im Queue wartenden Chunks verwerfen
-        while not self.audio_q.empty():
-            self.audio_q.get_nowait()
-        self.event.clear()
-
-    def set_interval(self, interval: float):
-        """Ändert das Transkribier-Intervall on-the-fly."""
-        self.interval = interval
 
     def set_language(self, language: str):
         self.language = language
@@ -67,130 +41,99 @@ class SpeechRecorder:
         if self.running:
             self.audio_q.put(indata.copy())
 
-    def start_dot_printer_thread(self):
-        """
-        Startet einen Daemon-Thread, der ein Emoji und Punkte ausgibt,
-        bis clear_dot_printing() das Stop-Event setzt.
-        """
-        self.clear_rec_symbol()
-        # Event zum Stoppen des Dot-Printers
+    def _clear_queue(self):
+        while not self.audio_q.empty():
+            try:
+                self.audio_q.get_nowait()
+            except queue.Empty:
+                break
+
+    def _print_rec_symbol(self):
+        if not self.rec_mark_printed:
+            self.rec_mark_printed = True
+            self.keyb_c.paste(self.rec_mark)
+
+    def _clear_rec_symbol(self):
+        if self.rec_mark_printed:
+            self.rec_mark_printed = False
+            self.keyb_c.undo()
+
+    def _start_dot_printer(self):
         self.dot_stop_event = threading.Event()
         self.char_count = 1
 
         def dot_printer():
-            # Ausgabe des Start-Emojis
             self.keyb_c.paste("📝", end="")
-            # Punkte schreiben, bis das Stop-Event gesetzt wird
             while not self.dot_stop_event.is_set():
                 self.keyb_c.write('.', end="", interval=0.5)
                 self.char_count += 1
-            # Entferne das Emoji und alle Punkte
             self.keyb_c.backspace(self.char_count)
 
         self.dot_printer_thread = threading.Thread(target=dot_printer, daemon=True)
         self.dot_printer_thread.start()
 
-    def clear_dot_printing(self):
-        """
-        Stoppt den Dot-Printer-Thread durch Setzen des Stop-Events
-        und wartet auf dessen Beendigung.
-        """
+    def _stop_dot_printer(self):
         if hasattr(self, 'dot_stop_event'):
             self.dot_stop_event.set()
             if self.dot_printer_thread:
                 self.dot_printer_thread.join()
 
-    def print_rec_symbol(self):
-        if not self.rec_mark_printed:
-            self.rec_mark_printed = True
-            self.keyb_c.paste(self.rec_mark)
-
-    def clear_rec_symbol(self):
-        if self.rec_mark_printed:
-            self.rec_mark_printed = False
-            self.keyb_c.undo()
-
-    def clear_last_text(self):
-        if self.transcription_printed:
-            self.transcription_printed = False
-            self.keyb_c.backspace(len(self.last_text))
-
-    def _live_loop(self):
-        self.keyb_c.save_clipboard()
-        self.print_rec_symbol()
+    def _transcribe_and_paste(self):
+        # Alle aufgenommenen Chunks einsammeln
         chunks = []
-        while self.running:
-            # Warte auf das nächste Intervall oder Stop-Signal
-            self.event.wait(timeout=self.interval)
-            # Chunks aus Audio-Queue bis zur Leere sammeln
-            try:
-                while True:
-                    chunks.append(self.audio_q.get_nowait())
-            except queue.Empty:
-                pass
-            # Falls keine neuen Daten vorliegen, überspringen
-            if not chunks:
-                continue
-            # Monokanalisierung und Zusammenfassung
-            try:
-                audio = np.concatenate(chunks, axis=0)[:, 0]
-            except ValueError:
-                continue
+        try:
+            while True:
+                chunks.append(self.audio_q.get_nowait())
+        except queue.Empty:
+            pass
 
+        self._clear_rec_symbol()
+
+        if not chunks:
+            self.keyb_c.load_clipboard()
+            return
+
+        # Während Transkription: Punkte-Indikator anzeigen
+        self._start_dot_printer()
+        full = ""
+        try:
+            audio = np.concatenate(chunks, axis=0)[:, 0]
             seg_iterator, _ = self.model.transcribe(
-                audio, language=self.language, vad_filter=True,
-                beam_size=5, best_of=5
+                audio,
+                language=self.language,
+                vad_filter=True,
+                beam_size=1,
+                best_of=1,
+                temperature=0,
+                condition_on_previous_text=False,
             )
-            try:
-                self.is_transcribing = True
-                segments = list(seg_iterator)
-            except RuntimeError as e:
-                print(f"Transkription fehlgeschlagen: {e}")
-                break
-            finally:
-                self.is_transcribing = False
-
+            segments = list(seg_iterator)
             full = " ".join(s.text.strip() for s in segments).strip()
-            
-            if not full or full == self.last_text:
-                continue
+        except Exception as e:
+            print(f"Transkription fehlgeschlagen: {e}")
+        finally:
+            self._stop_dot_printer()
 
-            self.clear_rec_symbol()
-            self.clear_dot_printing()
+        if full:
+            self.keyb_c.paste(full)
 
-            if self.last_text and full.startswith(self.last_text):
-                # nur Tail anhängen
-                self.keyb_c.paste(full[len(self.last_text):])
-            else:
-                self.clear_last_text()
-                self.keyb_c.paste(full)
-
-            self.transcription_printed = True
-            self.last_text = full
-        self.clear_rec_symbol()
-        self.clear_dot_printing()
+        self.keyb_c.load_clipboard()
 
     def start(self):
         with self.start_stop_lock:
             if self.running:
                 return
+            self._clear_queue()
             self.running = True
-            # Transkriptions-Thread starten (Audio-Daten kommen über self.audio_q)
-            self.transcriber_thread = threading.Thread(target=self._live_loop, daemon=True)
-            self.transcriber_thread.start()
+        self.keyb_c.save_clipboard()
+        self._print_rec_symbol()
 
     def stop(self):
         with self.start_stop_lock:
             if not self.running:
                 return
             self.running = False
-            # Stop-Signal an den Live-Loop senden
-            self.event.set()
-            # Progress-Indikator (Punkte) anzeigen, falls Transkription noch läuft
-            if self.is_transcribing:
-                self.start_dot_printer_thread()
-            # Auf Ende des Transkriptions-Threads warten
-            self.transcriber_thread.join()
-            print("STOP")
-            self.clear_variables()
-            self.keyb_c.load_clipboard()
+        self._transcribe_thread = threading.Thread(
+            target=self._transcribe_and_paste, daemon=True
+        )
+        self._transcribe_thread.start()
