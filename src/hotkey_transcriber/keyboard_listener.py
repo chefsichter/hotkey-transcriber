@@ -1,52 +1,40 @@
-# keyboard_listener.py
-from pynput import keyboard
+import threading
+import keyboard
+
 
 class KeyBoardListener:
     """
     Fangt Alt+R ab und ruft start_callback() beim Drücken
-    und stop_callback() beim Loslassen von 'r' auf.
+    und stop_callback() beim Loslassen auf.
+    Alt+R-Events werden auf OS-Ebene unterdrückt (kein 'r' im Textfeld).
     """
-    ALT_KEYS = {
-        keyboard.Key.alt,
-        keyboard.Key.alt_l,
-        keyboard.Key.alt_r,
-        keyboard.Key.alt_gr,
-    }
 
     def __init__(self, start_callback, stop_callback):
         self.start_callback = start_callback
-        self.stop_callback  = stop_callback
-        self.alt_pressed    = False
-        self.r_pressed      = False
-        self.alt_down = False
+        self.stop_callback = stop_callback
         self.recording = False
+        self._hook = None
 
-        self.listener = keyboard.Listener(
-            on_press=self._on_press,
-            on_release=self._on_release,
-            daemon=True,
-        )
-
-    def _on_press(self, key):
-        if key in self.ALT_KEYS:
-            self.alt_down = True
+    def _on_event(self, event):
+        if event.name != 'r':
+            return
+        if not (keyboard.is_pressed('alt') or keyboard.is_pressed('right alt')):
             return
 
-        if getattr(key, "char", None) == "r" and self.alt_down and not self.recording:
-            self.start_callback()
+        if event.event_type == keyboard.KEY_DOWN and not self.recording:
             self.recording = True
+            threading.Thread(target=self.start_callback, daemon=True).start()
+        elif event.event_type == keyboard.KEY_UP and self.recording:
+            self.recording = False
+            threading.Thread(target=self.stop_callback, daemon=True).start()
 
-    def _on_release(self, key):
-        if getattr(key, "char", None) == "r":
-            if self.recording:
-                self.stop_callback()
-                self.recording = False
-
-        if key in self.ALT_KEYS:
-            self.alt_down = False
+        # False → Event wird NICHT ans aktive Fenster weitergeleitet
+        return False
 
     def start(self):
-        self.listener.start()
+        self._hook = keyboard.hook(self._on_event)
 
     def stop(self):
-        self.listener.stop()
+        if self._hook:
+            keyboard.unhook(self._hook)
+            self._hook = None
