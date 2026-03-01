@@ -56,6 +56,17 @@ Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
 Autostart-Werte: `ask`, `on`, `off`.
 Unter Windows legt der Installer zusaetzlich einen Startmenue-Eintrag (`Hotkey Transcriber`) an.
 
+Deinstallation:
+
+- Linux:
+  ```bash
+  bash ./tools/uninstall_linux.sh
+  ```
+- Windows (PowerShell):
+  ```powershell
+  .\tools\uninstall_windows.ps1
+  ```
+
 ### 🧰 Manuelle Installation (pipx / git)
 
 #### pipx installieren
@@ -93,7 +104,13 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    ```powershell
    .\tools\setup_wsl_amd.ps1
    ```
-3. Starten:
+3. Installation/Start (empfohlen):
+   ```powershell
+   .\tools\install_windows.ps1 -Autostart ask
+   ```
+   Der Installer setzt `HOTKEY_TRANSCRIBER_BACKEND=auto` und richtet den tray-only Start ein.
+
+   Alternativ manuell:
    ```powershell
    $env:HOTKEY_TRANSCRIBER_BACKEND="auto"
    hotkey-transcriber
