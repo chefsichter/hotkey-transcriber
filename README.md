@@ -56,6 +56,17 @@ You can use the local installer scripts directly (including autostart choice):
 Autostart values: `ask`, `on`, `off`.
 On Windows, the installer also creates a Start Menu entry (`Hotkey Transcriber`).
 
+Uninstall:
+
+- Linux:
+  ```bash
+  bash ./tools/uninstall_linux.sh
+  ```
+- Windows (PowerShell):
+  ```powershell
+  .\tools\uninstall_windows.ps1
+  ```
+
 ### 🧰 Manual installation (pipx / git)
 
 pipx is required to install the application in isolation:
@@ -91,7 +102,13 @@ pipx is required to install the application in isolation:
    ```powershell
    .\tools\setup_wsl_amd.ps1
    ```
-3. Start:
+3. Install/start (recommended):
+   ```powershell
+   .\tools\install_windows.ps1 -Autostart ask
+   ```
+   The installer sets `HOTKEY_TRANSCRIBER_BACKEND=auto` and configures tray-only startup.
+
+   Manual alternative:
    ```powershell
    $env:HOTKEY_TRANSCRIBER_BACKEND="auto"
    hotkey-transcriber

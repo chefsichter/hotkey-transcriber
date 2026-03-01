@@ -8,14 +8,15 @@ import sys
 import subprocess
 from pathlib import Path
 
-ICON = "microphone.png"
+SOURCE_ICON = "microphone.png"
+TARGET_ICON = "hotkey-transcriber.png"
 
 def main():
     desktop_files_path = Path(__file__).resolve().parent.parent
     root = desktop_files_path.parent
     resources_path = root / "src" / "hotkey_transcriber" / "resources"
     desktop_src = desktop_files_path / "linux" / "hotkey-transcriber.desktop"
-    icon_src = resources_path / "icon" / f"{ICON}"
+    icon_src = resources_path / "icon" / SOURCE_ICON
 
     if not desktop_src.is_file():
         print(f"Error: Desktop file not found: {desktop_src}", file=sys.stderr)
@@ -30,7 +31,7 @@ def main():
     icons_dir.mkdir(parents=True, exist_ok=True)
 
     desktop_dst = applications_dir / desktop_src.name
-    icon_dst = icons_dir / icon_src.name
+    icon_dst = icons_dir / TARGET_ICON
     # Copy files
     try:
         import shutil
