@@ -1,5 +1,9 @@
-﻿import signal
+import io
+import os
+import signal
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from hotkey_transcriber import autostart
 from hotkey_transcriber.backend_manager import resolve_backend
@@ -37,6 +41,66 @@ MODEL_CHOICES = [
     "distil-large-v3",
     "TheChola/whisper-large-v3-turbo-german-faster-whisper",
 ]
+
+_LOG_FILE_HANDLE = None
+
+
+class _TeeStream(io.TextIOBase):
+    def __init__(self, original, logfile):
+        self._original = original
+        self._logfile = logfile
+
+    def write(self, text):
+        if not isinstance(text, str):
+            text = str(text)
+        self._logfile.write(text)
+        self._logfile.flush()
+        if self._original and hasattr(self._original, "write"):
+            try:
+                self._original.write(text)
+            except Exception:
+                pass
+        return len(text)
+
+    def flush(self):
+        self._logfile.flush()
+        if self._original and hasattr(self._original, "flush"):
+            try:
+                self._original.flush()
+            except Exception:
+                pass
+
+
+def _runtime_log_path() -> Path:
+    if sys.platform == "win32":
+        base = Path(os.getenv("APPDATA", str(Path.home())))
+    else:
+        base = Path(os.getenv("XDG_STATE_HOME", str(Path.home() / ".local" / "state")))
+    log_dir = base / "hotkey-transcriber" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir / "hotkey-transcriber.log"
+
+
+def _setup_log_capture() -> Path:
+    global _LOG_FILE_HANDLE
+    log_path = _runtime_log_path()
+    _LOG_FILE_HANDLE = open(log_path, "a", encoding="utf-8", buffering=1)
+    sys.stdout = _TeeStream(getattr(sys, "stdout", None), _LOG_FILE_HANDLE)
+    sys.stderr = _TeeStream(getattr(sys, "stderr", None), _LOG_FILE_HANDLE)
+    print(f"[{datetime.now().isoformat(timespec='seconds')}] Hotkey Transcriber started")
+    return log_path
+
+
+def _read_log_tail(path: Path, max_bytes: int = 200_000) -> str:
+    if not path.exists():
+        return "Noch keine Logs vorhanden."
+    with open(path, "rb") as f:
+        f.seek(0, 2)
+        size = f.tell()
+        start = max(0, size - max_bytes)
+        f.seek(start)
+        data = f.read()
+    return data.decode("utf-8", errors="replace")
 
 
 def _init_runtime():
@@ -101,7 +165,7 @@ def _show_hotkey_dialog(parent=None):
         return None
 
     # QKeySequence stores the combo as an int; decode it.
-    # Cast modifier flags to int first — PyQt5 returns KeyboardModifiers objects,
+    # Cast modifier flags to int first - PyQt5 returns KeyboardModifiers objects,
     # which don't support bitwise NOT (~) mixed with plain ints.
     combo = seq[0]
     _ALL_MODS = int(Qt.ShiftModifier) | int(Qt.ControlModifier) | int(Qt.AltModifier) | int(Qt.MetaModifier)
@@ -109,7 +173,7 @@ def _show_hotkey_dialog(parent=None):
     mod_int = combo & (int(Qt.ShiftModifier) | int(Qt.ControlModifier) | int(Qt.AltModifier))
 
     if not mod_int:
-        return None  # no modifier – reject
+        return None  # no modifier - reject
 
     # Build modifier string
     parts = []
@@ -142,12 +206,24 @@ def _build_tray_tooltip(hotkey_cfg: dict) -> str:
 
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+    log_path = _setup_log_capture()
 
     backend, device, compute_type, recorder, hotkey = _init_runtime()
     hotkey_ref = [hotkey]  # mutable container so the exit lambda always sees the current listener
 
-    from PyQt5.QtGui import QIcon
-    from PyQt5.QtWidgets import QAction, QActionGroup, QApplication, QMenu, QSystemTrayIcon
+    from PyQt5.QtGui import QIcon, QTextCursor
+    from PyQt5.QtWidgets import (
+        QAction,
+        QActionGroup,
+        QApplication,
+        QDialog,
+        QDialogButtonBox,
+        QMenu,
+        QPlainTextEdit,
+        QPushButton,
+        QSystemTrayIcon,
+        QVBoxLayout,
+    )
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -325,6 +401,35 @@ def main():
 
         act_autostart.toggled.connect(_on_toggle_autostart)
         menu.addAction(act_autostart)
+
+    act_logs = QAction("Logs anzeigen…")
+
+    def _on_show_logs():
+        dialog = QDialog()
+        dialog.setWindowTitle("Hotkey Transcriber Logs")
+        dialog.resize(820, 520)
+
+        layout = QVBoxLayout(dialog)
+        editor = QPlainTextEdit(dialog)
+        editor.setReadOnly(True)
+        layout.addWidget(editor)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Close, parent=dialog)
+        refresh_btn = QPushButton("Aktualisieren", dialog)
+        buttons.addButton(refresh_btn, QDialogButtonBox.ActionRole)
+        layout.addWidget(buttons)
+
+        def _reload():
+            editor.setPlainText(_read_log_tail(log_path))
+            editor.moveCursor(QTextCursor.End)
+
+        refresh_btn.clicked.connect(_reload)
+        buttons.rejected.connect(dialog.reject)
+        _reload()
+        dialog.exec_()
+
+    act_logs.triggered.connect(_on_show_logs)
+    menu.addAction(act_logs)
 
     menu.addSeparator()
 
