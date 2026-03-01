@@ -129,7 +129,7 @@ class SpeechRecorder:
             dot_thread.join()
 
         if full:
-            self.keyb_c.paste(full)
+            self.keyb_c.paste(full + " ")
 
         self.keyb_c.load_clipboard()
 
