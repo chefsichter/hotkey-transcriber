@@ -53,6 +53,9 @@ class KeyboardController:
             _safe_print(text, end=end, flush=True)
             pyperclip.copy(text)
             time.sleep(self.wait)
+            pyautogui.keyUp("altleft")
+            pyautogui.keyUp("altright")
+            time.sleep(self.wait)
             pyautogui.hotkey("ctrl", "v")
             time.sleep(self.wait)
 
