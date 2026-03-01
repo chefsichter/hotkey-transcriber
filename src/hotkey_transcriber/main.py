@@ -21,7 +21,7 @@ LANGUAGE = config.get("language", "de")
 REC_MARK = config.get("rec_mark", "🔴 REC")
 CHANNELS = config.get("channels", 1)
 CHUNK_MS = config.get("chunk_ms", 30)
-DEFAULT_TRAY_TIP = "Live-Diktat (Tray-Menue)"
+DEFAULT_TRAY_TIP = "Live-Diktat"
 
 _DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
 MODEL_CHOICES = [
@@ -135,6 +135,10 @@ def _hotkey_label(cfg: dict) -> str:
     return f"{mod}+{key}"
 
 
+def _build_tray_tooltip(hotkey_cfg: dict) -> str:
+    return f"{DEFAULT_TRAY_TIP} | Hotkey: {_hotkey_label(hotkey_cfg)}"
+
+
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -149,7 +153,7 @@ def main():
 
     icon = QIcon(get_microphone_icon_path())
     tray = QSystemTrayIcon(icon, parent=app)
-    tray.setToolTip(DEFAULT_TRAY_TIP)
+    tray.setToolTip(_build_tray_tooltip(config.get("hotkey", _DEFAULT_HOTKEY)))
 
     menu = QMenu()
 
@@ -255,7 +259,16 @@ def main():
         lang_group.addAction(action)
         language_menu.addAction(action)
 
+    current_hotkey_cfg = config.get("hotkey", _DEFAULT_HOTKEY)
+    act_hotkey_info = QAction(f"Aktueller Hotkey: {_hotkey_label(current_hotkey_cfg)}")
+    act_hotkey_info.setEnabled(False)
+    menu.addAction(act_hotkey_info)
+
     act_hotkey = QAction("Tastenkombination ändern…")
+
+    def _refresh_hotkey_ui(cfg: dict):
+        act_hotkey_info.setText(f"Aktueller Hotkey: {_hotkey_label(cfg)}")
+        tray.setToolTip(_build_tray_tooltip(cfg))
 
     def _on_change_hotkey():
         hotkey_ref[0].stop()
@@ -265,6 +278,7 @@ def main():
             hotkey_ref[0] = new_hotkey
             config["hotkey"] = result
             save_config(config)
+            _refresh_hotkey_ui(result)
             tray.showMessage(
                 "Tastenkombination geändert",
                 f"Neue Tastenkombination: {_hotkey_label(result)}",
@@ -276,6 +290,7 @@ def main():
             old_cfg = config.get("hotkey", _DEFAULT_HOTKEY)
             restored = load_keyboard_listener(recorder, hotkey_config=old_cfg)
             hotkey_ref[0] = restored
+            _refresh_hotkey_ui(old_cfg)
 
     act_hotkey.triggered.connect(_on_change_hotkey)
     menu.addAction(act_hotkey)
@@ -299,4 +314,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
