@@ -37,19 +37,77 @@ function Get-HotkeyTranscriberExecutable {
     throw "Could not find hotkey-transcriber executable after install."
 }
 
-function New-StartMenuShortcut {
+function Get-ShortcutIconPath {
+    $iconDir = Join-Path $env:APPDATA "hotkey-transcriber"
+    New-Item -ItemType Directory -Force -Path $iconDir | Out-Null
+    return Join-Path $iconDir "hotkey-transcriber.ico"
+}
+
+function Ensure-ShortcutIcon {
+    $iconPath = Get-ShortcutIconPath
+    $pngPath = Join-Path $repoRoot "src\\hotkey_transcriber\\resources\\icon\\microphone.png"
+
+    if (Test-Path $pngPath) {
+        Add-Type -AssemblyName System.Drawing
+        $bitmap = [System.Drawing.Bitmap]::FromFile($pngPath)
+        try {
+            $icon = [System.Drawing.Icon]::FromHandle($bitmap.GetHicon())
+            try {
+                $stream = [System.IO.File]::Open($iconPath, [System.IO.FileMode]::Create)
+                try {
+                    $icon.Save($stream)
+                } finally {
+                    $stream.Close()
+                }
+            } finally {
+                $icon.Dispose()
+            }
+        } finally {
+            $bitmap.Dispose()
+        }
+    }
+
+    if (Test-Path $iconPath) {
+        return $iconPath
+    }
+
+    return Get-HotkeyTranscriberExecutable
+}
+
+function Get-LauncherScriptPath {
+    $launcherDir = Join-Path $env:APPDATA "hotkey-transcriber"
+    New-Item -ItemType Directory -Force -Path $launcherDir | Out-Null
+    return Join-Path $launcherDir "launch_hotkey_transcriber.vbs"
+}
+
+function New-HiddenLauncherScript {
     $exePath = Get-HotkeyTranscriberExecutable
+    $launcherPath = Get-LauncherScriptPath
+    $escaped = $exePath.Replace('"', '""')
+    $content = @"
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run """$escaped""", 0, False
+"@
+    Set-Content -Path $launcherPath -Value $content -Encoding UTF8
+    return $launcherPath
+}
+
+function New-StartMenuShortcut {
+    $launcherPath = New-HiddenLauncherScript
+    $iconPath = Ensure-ShortcutIcon
     $programsDir = [Environment]::GetFolderPath("Programs")
     $shortcutPath = Join-Path $programsDir "Hotkey Transcriber.lnk"
 
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $exePath
-    $shortcut.WorkingDirectory = Split-Path -Parent $exePath
-    $shortcut.Description = "Hotkey Transcriber (Live dictation tray app)"
+    $shortcut.TargetPath = "wscript.exe"
+    $shortcut.Arguments = "`"$launcherPath`""
+    $shortcut.WorkingDirectory = Split-Path -Parent $launcherPath
+    $shortcut.Description = "Hotkey Transcriber (tray app)"
+    $shortcut.IconLocation = "$iconPath,0"
     $shortcut.Save()
 
-    Write-Host "Startmenü-Verknüpfung erstellt: $shortcutPath"
+    Write-Host "Startmenü-Verknüpfung erstellt: $shortcutPath (ohne Terminalfenster)"
 }
 
 if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
