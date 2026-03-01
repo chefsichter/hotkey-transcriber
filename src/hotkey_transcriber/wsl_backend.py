@@ -117,8 +117,10 @@ def main():
                 req["audio_path"],
                 language=req.get("language"),
                 vad_filter=req.get("vad_filter", True),
-                beam_size=req.get("beam_size", 5),
-                best_of=req.get("best_of", 5),
+                beam_size=req.get("beam_size", 1),
+                best_of=req.get("best_of", 1),
+                temperature=req.get("temperature", 0),
+                condition_on_previous_text=req.get("condition_on_previous_text", False),
             )
             emit({"ok": True, "segments": [s.text for s in segs]})
         except Exception as exc:
@@ -262,7 +264,8 @@ class WslWhisperModel:
 
             return json.loads(raw)
 
-    def transcribe(self, audio, language=None, vad_filter=True, beam_size=5, best_of=5):
+    def transcribe(self, audio, language=None, vad_filter=True, beam_size=1, best_of=1,
+                   temperature=0, condition_on_previous_text=False):
         with tempfile.NamedTemporaryFile(
             suffix=".wav",
             prefix="ht_",
@@ -289,6 +292,8 @@ class WslWhisperModel:
                 "vad_filter": vad_filter,
                 "beam_size": beam_size,
                 "best_of": best_of,
+                "temperature": temperature,
+                "condition_on_previous_text": condition_on_previous_text,
             }
             reply = self._request(req, timeout=300)
             if not reply.get("ok"):

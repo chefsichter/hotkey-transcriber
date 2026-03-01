@@ -132,7 +132,7 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native"):
     return model
 
 
-def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, interval, language, rec_mark):
+def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, rec_mark):
     message = "Lade SpeechRecorder…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
@@ -144,7 +144,6 @@ def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, interval, 
         keyboard_controller=keyboard_controller,
         channels=channels,
         chunk_ms=chunk_ms,
-        interval=interval,
         language=language,
         rec_mark=rec_mark,
     )
