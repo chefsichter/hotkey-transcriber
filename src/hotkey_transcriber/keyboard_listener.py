@@ -31,8 +31,8 @@ if sys.platform == 'win32':
             ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong)),
         ]
 
-    _user32 = ctypes.windll.user32
-    _kernel32 = ctypes.windll.kernel32
+    _user32 = ctypes.WinDLL('user32', use_last_error=True)
+    _kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
 
     class KeyBoardListener:
         """
@@ -77,6 +77,12 @@ if sys.platform == 'win32':
             return _user32.CallNextHookEx(self._hook_id, nCode, wParam, lParam)
 
         def _run(self):
+            # Message-Queue im Thread erzwingen, bevor der Hook installiert wird
+            msg = ctypes.wintypes.MSG()
+            _user32.PeekMessageW(
+                ctypes.byref(msg), None, 0, 0, 0,  # PM_NOREMOVE
+            )
+
             self._hook_func = _HOOKPROC(self._proc)
             self._hook_id = _user32.SetWindowsHookExW(
                 _WH_KEYBOARD_LL,
@@ -85,9 +91,11 @@ if sys.platform == 'win32':
                 0,
             )
             if not self._hook_id:
-                raise RuntimeError("SetWindowsHookExW failed")
+                err = ctypes.get_last_error()
+                raise RuntimeError(
+                    f"SetWindowsHookExW failed (error {err})"
+                )
 
-            msg = ctypes.wintypes.MSG()
             while _user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
                 _user32.TranslateMessage(ctypes.byref(msg))
                 _user32.DispatchMessageW(ctypes.byref(msg))
