@@ -147,6 +147,8 @@ def _run_wsl(script):
         return subprocess.check_output(
             ["wsl.exe", "-e", "bash", "-lc", script],
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stderr=subprocess.STDOUT,
         )
     except subprocess.CalledProcessError as exc:
@@ -202,6 +204,7 @@ class WslWhisperModel:
         token_prefix = (" && ".join(token_exports) + " && ") if token_exports else ""
         cmd = (
             "source ~/.hotkey-transcriber-wsl/bin/activate && "
+            "export LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONIOENCODING=UTF-8 && "
             f"export LD_LIBRARY_PATH={venv_lib}:{rocm_llvm_lib}:$LD_LIBRARY_PATH && "
             f"{token_prefix}"
             f"exec python3 -u {script_arg} --model {model_arg}"
@@ -213,6 +216,8 @@ class WslWhisperModel:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
         )
 
