@@ -116,7 +116,8 @@ class SpeechRecorder:
             dot_thread.join()
 
         if full:
-            self.keyb_c.paste(full + " ")
+            self.keyb_c.paste(full)
+            self.keyb_c.write(" ", end="", interval=0)  # direct keypress – clipboard strips trailing space on Windows
 
         self.keyb_c.load_clipboard()
 
