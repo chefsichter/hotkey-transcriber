@@ -82,16 +82,16 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native"):
             cache_dir=cache_dir,
         )
     except (ValueError, HfHubHTTPError, LocalEntryNotFoundError):
-        print(f"Download Whisper-Modell '{size}'...")
+        print(f"⏬ Download Whisper-Modell '{size}'…")
         model_path = download_model(
             size_or_id=size,
             local_files_only=False,
             cache_dir=cache_dir,
         )
-        print(f"Modell '{size}' heruntergeladen.")
+        print(f"✅ Modell '{size}' heruntergeladen.")
 
     if not _snapshot_has_model_bin(model_path):
-        print(f"Modell-Snapshot fuer '{size}' ist unvollstaendig, lade neu...")
+        print(f"⚠️ Modell-Snapshot fuer '{size}' ist unvollstaendig, lade neu…")
         model_path = _repair_and_download(size=size, model_path=model_path, cache_dir=cache_dir)
         if not _snapshot_has_model_bin(model_path):
             raise RuntimeError(
@@ -99,7 +99,7 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native"):
             )
 
     stop_event = threading.Event()
-    message = f"Lade Whisper-Modell '{size}' auf '{device}'..."
+    message = f"Lade Whisper-Modell '{size}' auf '{device}'…"
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
     spinner_thread.start()
 
@@ -127,13 +127,13 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native"):
 
     stop_event.set()
     spinner_thread.join()
-    print(f"Whisper-Modell '{size}' auf '{device}' bereit.", flush=True)
+    print(f"✅ Whisper-Modell '{size}' auf '{device}' bereit.", flush=True)
 
     return model
 
 
 def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, interval, language, rec_mark):
-    message = "Lade SpeechRecorder..."
+    message = "Lade SpeechRecorder…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
     spinner_thread.start()
@@ -151,12 +151,12 @@ def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, interval, 
 
     stop_event.set()
     spinner_thread.join()
-    print("SpeechRecorder bereit.", flush=True)
+    print("✅ SpeechRecorder bereit.", flush=True)
     return recorder
 
 
 def load_keyboard_listener(recorder):
-    message = "Lade KeyBoardListener..."
+    message = "Lade KeyBoardListener…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
     spinner_thread.start()
@@ -166,7 +166,7 @@ def load_keyboard_listener(recorder):
 
     stop_event.set()
     spinner_thread.join()
-    print("KeyBoardListener bereit.", flush=True)
+    print("✅ KeyBoardListener bereit.", flush=True)
     return hotkey
 
 

@@ -72,10 +72,10 @@ class KeyboardController:
         with self.lock:
             self.clipboard_content = pyperclip.paste()
             time.sleep(self.wait)
-            _safe_print("Clipboard gespeichert.")
+            _safe_print("💾 Clipboard gespeichert.")
 
     def load_clipboard(self):
         """Restore previous clipboard content."""
         with self.lock:
             pyperclip.copy(self.clipboard_content)
-            _safe_print("Clipboard wieder geladen.")
+            _safe_print("📤 Clipboard wieder geladen.")
