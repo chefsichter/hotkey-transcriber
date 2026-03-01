@@ -1,11 +1,11 @@
-{
-  "model_size": "medium",
+﻿{
+  "model_size": "TheChola/whisper-large-v3-turbo-german-faster-whisper",
   "interval": 1,
   "language": "de",
   "wait_on_keyboard": 0.02,
   "channels": 1,
   "chunk_ms": 30,
-  "rec_mark": "ðŸ”´ REC",
+  "rec_mark": "🔴 REC",
   "model_infos": {
     "tiny": "Tiny (39MB): sehr schnell, geringere Genauigkeit, multilingual",
     "base": "Base (74MB): schnell, niedrige Genauigkeit, multilingual",
@@ -13,7 +13,7 @@
     "distil-small.en": "Distil Small (English, ~70MB): schneller als Small, niedrigere Genauigkeit",
     "medium": "Medium (769MB): gute Genauigkeit, langsamer, multilingual",
     "distil-medium.en": "Distil Medium (English, ~400MB): schneller als Medium, niedrigere Genauigkeit",
-    "large-v3": "Large-v3 (~1.5GB): hÃ¶chste Genauigkeit, langsam, multilingual",
+    "large-v3": "Large-v3 (~1.5GB): hÃƒÂ¶chste Genauigkeit, langsam, multilingual",
     "large-v3-turbo": "Large-v3-turbo (~1.5GB): hohe Genauigkeit, schneller als Large-v3, multilingual",
     "distil-large-v3": "Distil Large-v3 (English, ~900MB): schneller als Large-v3, etwas geringere Genauigkeit",
     "TheChola/whisper-large-v3-turbo-german-faster-whisper": "Whisper Large-v3 Turbo German (TheChola, faster-whisper/ct2): auf Deutsch spezialisiert, turbo"
@@ -237,4 +237,3 @@
     ]
   ]
 }
-
