@@ -3,6 +3,7 @@ import os
 import shutil
 import threading
 import time
+from pathlib import Path
 
 from faster_whisper import WhisperModel, download_model
 from huggingface_hub.errors import LocalEntryNotFoundError
@@ -27,7 +28,31 @@ def _snapshot_has_model_bin(model_path):
     return os.path.isfile(os.path.join(model_path, "model.bin"))
 
 
+def _cleanup_stale_hf_state(model_path):
+    """Remove stale partially-downloaded files and stale lock files."""
+    try:
+        model_dir = Path(model_path).resolve().parent.parent
+    except Exception:
+        return
+
+    if not model_dir.exists():
+        return
+
+    blobs_dir = model_dir / "blobs"
+    if blobs_dir.is_dir():
+        for incomplete_file in blobs_dir.glob("*.incomplete"):
+            try:
+                incomplete_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    locks_dir = model_dir / ".locks"
+    if locks_dir.is_dir():
+        shutil.rmtree(locks_dir, ignore_errors=True)
+
+
 def _repair_and_download(size, model_path, cache_dir=None):
+    _cleanup_stale_hf_state(model_path)
     try:
         if os.path.isdir(model_path):
             shutil.rmtree(model_path, ignore_errors=True)
@@ -143,4 +168,5 @@ def load_keyboard_listener(recorder):
     spinner_thread.join()
     print("KeyBoardListener bereit.", flush=True)
     return hotkey
+
 
