@@ -22,18 +22,9 @@ class SpeechRecorder:
         self._rec_mark_printed = False
 
         self._audio_q = queue.Queue()
-        self._audio_flushed = threading.Event()
+        self._stream = None  # opened on demand in start(), closed in stop()
 
         self._transcribe_thread = None
-
-        self._stream = sd.InputStream(
-            samplerate=16_000,
-            channels=1,
-            dtype="float32",
-            blocksize=int(16_000 * chunk_ms / 1000),
-            callback=self._audio_callback,
-        )
-        self._stream.start()
 
     @property
     def running(self):
@@ -49,10 +40,6 @@ class SpeechRecorder:
     def _audio_callback(self, indata, frames, ti, status):
         if self._running:
             self._audio_q.put(indata.copy())
-        else:
-            # First callback after _running turned False: all in-flight
-            # audio blocks have been delivered – signal the transcribe thread.
-            self._audio_flushed.set()
 
     # ------------------------------------------------------------------ #
     # Helpers                                                              #
@@ -94,12 +81,8 @@ class SpeechRecorder:
         self.keyb_c.backspace(count)
 
     def _transcribe_and_paste(self):
-        # Wait until sounddevice fires the first post-stop callback, which
-        # guarantees all in-flight audio blocks are now in the queue.
-        # Timeout = two block durations + safety margin (no sleep needed).
-        flush_timeout = (self.chunk_ms / 1000) * 2 + 0.1
-        self._audio_flushed.wait(timeout=flush_timeout)
-
+        # stream.stop() in stop() already blocked until all callbacks finished,
+        # so the queue contains the complete recording at this point.
         chunks = self._drain_audio_queue()
         if not chunks:
             self.keyb_c.load_clipboard()
@@ -146,6 +129,14 @@ class SpeechRecorder:
             if self._running:
                 return
             self._flush_audio_queue()
+            self._stream = sd.InputStream(
+                samplerate=16_000,
+                channels=1,
+                dtype="float32",
+                blocksize=int(16_000 * self.chunk_ms / 1000),
+                callback=self._audio_callback,
+            )
+            self._stream.start()
             self._running = True
             self._rec_mark_printed = True  # set atomically before paste
 
@@ -156,16 +147,22 @@ class SpeechRecorder:
         with self._lock:
             if not self._running:
                 return
-            self._audio_flushed.clear()
             self._running = False
             do_clear = self._rec_mark_printed
             self._rec_mark_printed = False  # cleared atomically inside lock
+            stream = self._stream
+            self._stream = None
 
         # Remove REC marker immediately – text field still has focus here.
-        # backspace(n) is deterministic; undo() is not (undo stack may differ
-        # per app, and Alt may still be physically held from the Alt+R hotkey).
         if do_clear:
             self.keyb_c.backspace(len(self.rec_mark))
+
+        # stop() blocks until the last audio callback completes (≤ one
+        # chunk_ms = 30 ms), guaranteeing all audio is in the queue before
+        # the transcribe thread drains it.
+        if stream:
+            stream.stop()
+            stream.close()
 
         self._transcribe_thread = threading.Thread(
             target=self._transcribe_and_paste, daemon=True
