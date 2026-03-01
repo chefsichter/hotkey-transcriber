@@ -1,5 +1,6 @@
 import threading
 import queue
+import time
 import numpy as np
 import sounddevice as sd
 
@@ -79,6 +80,8 @@ class SpeechRecorder:
                 self.dot_printer_thread.join()
 
     def _transcribe_and_paste(self):
+        # Kurz warten, damit sounddevice In-Flight-Chunks noch in die Queue liefern kann
+        time.sleep(0.15)
         # Alle aufgenommenen Chunks einsammeln
         chunks = []
         try:
