@@ -1,6 +1,7 @@
 import argparse
 import os
 import shlex
+import shutil
 import sys
 from pathlib import Path
 
@@ -22,6 +23,34 @@ def _launch_command() -> str:
     return "hotkey-transcriber"
 
 
+def _windows_resolved_command() -> str:
+    command = shutil.which("hotkey-transcriber")
+    if command:
+        return f'"{command}"'
+    return "hotkey-transcriber"
+
+
+def _windows_launcher_path() -> Path:
+    appdata = os.getenv("APPDATA")
+    if not appdata:
+        raise RuntimeError("APPDATA is not set.")
+    return Path(appdata) / "hotkey-transcriber" / "launch_hotkey_transcriber.vbs"
+
+
+def _windows_launcher_content() -> str:
+    return (
+        'Set WshShell = CreateObject("WScript.Shell")\n'
+        f'WshShell.Run "{_windows_resolved_command().replace(chr(34), chr(34) * 2)}", 0, False\n'
+    )
+
+
+def ensure_windows_launcher() -> Path:
+    path = _windows_launcher_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_windows_launcher_content(), encoding="utf-8")
+    return path
+
+
 def _linux_autostart_path() -> Path:
     return Path.home() / ".config" / "autostart" / LINUX_AUTOSTART_FILE
 
@@ -34,7 +63,7 @@ def _linux_desktop_entry() -> str:
         "Name=Hotkey Transcriber\n"
         "Comment=Live dictation tray app\n"
         f"Exec={_launch_command()}\n"
-        "Icon=microphone\n"
+        "Icon=hotkey-transcriber\n"
         "Terminal=false\n"
         "Categories=Audio;Utility;Accessibility;\n"
         "X-GNOME-Autostart-enabled=true\n"
@@ -70,7 +99,9 @@ def _windows_set_enabled(enabled: bool) -> None:
 
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, WINDOWS_RUN_PATH) as key:
         if enabled:
-            winreg.SetValueEx(key, WINDOWS_RUN_VALUE, 0, winreg.REG_SZ, _launch_command())
+            launcher = ensure_windows_launcher()
+            reg_command = f'wscript.exe "{launcher}"'
+            winreg.SetValueEx(key, WINDOWS_RUN_VALUE, 0, winreg.REG_SZ, reg_command)
         else:
             try:
                 winreg.DeleteValue(key, WINDOWS_RUN_VALUE)
