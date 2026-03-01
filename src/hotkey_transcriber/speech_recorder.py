@@ -57,7 +57,7 @@ class SpeechRecorder:
     def _clear_rec_symbol(self):
         if self.rec_mark_printed:
             self.rec_mark_printed = False
-            self.keyb_c.backspace(len(self.rec_mark))
+            self.keyb_c.undo()
 
     def _start_dot_printer(self):
         self.dot_stop_event = threading.Event()
