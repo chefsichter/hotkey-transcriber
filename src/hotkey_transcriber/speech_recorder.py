@@ -35,6 +35,10 @@ class SpeechRecorder:
         )
         self._stream.start()
 
+    @property
+    def running(self):
+        return self._running
+
     def set_language(self, language: str):
         self.language = language
 
