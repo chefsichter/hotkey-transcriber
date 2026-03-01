@@ -90,8 +90,6 @@ class SpeechRecorder:
         except queue.Empty:
             pass
 
-        self._clear_rec_symbol()
-
         if not chunks:
             self.keyb_c.load_clipboard()
             return
@@ -136,6 +134,9 @@ class SpeechRecorder:
             if not self.running:
                 return
             self.running = False
+        # REC-Marker SOFORT entfernen – hier hat das Textfeld noch den Fokus
+        # und die Undo-History ist frisch (kein Sleep dazwischen)
+        self._clear_rec_symbol()
         self._transcribe_thread = threading.Thread(
             target=self._transcribe_and_paste, daemon=True
         )
