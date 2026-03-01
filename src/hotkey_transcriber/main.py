@@ -1,6 +1,7 @@
 ﻿import signal
 import sys
 
+from hotkey_transcriber import autostart
 from hotkey_transcriber.backend_manager import resolve_backend
 from hotkey_transcriber.config.config_manger import load_config, save_config
 from hotkey_transcriber.object_loader import (
@@ -294,6 +295,36 @@ def main():
 
     act_hotkey.triggered.connect(_on_change_hotkey)
     menu.addAction(act_hotkey)
+
+    if autostart.is_supported():
+        act_autostart = QAction("Beim Anmelden starten")
+        act_autostart.setCheckable(True)
+        act_autostart.setChecked(autostart.is_enabled())
+
+        def _on_toggle_autostart(checked):
+            try:
+                autostart.set_enabled(checked)
+                state_label = "aktiviert" if checked else "deaktiviert"
+                tray.showMessage(
+                    "Autostart",
+                    f"Autostart {state_label}.",
+                    QSystemTrayIcon.Information,
+                    2000,
+                )
+            except Exception as exc:
+                act_autostart.blockSignals(True)
+                act_autostart.setChecked(not checked)
+                act_autostart.blockSignals(False)
+                tray.showMessage(
+                    "Autostart-Fehler",
+                    "Autostart konnte nicht geaendert werden.",
+                    QSystemTrayIcon.Warning,
+                    3000,
+                )
+                print(f"Autostart konnte nicht geaendert werden: {exc}")
+
+        act_autostart.toggled.connect(_on_toggle_autostart)
+        menu.addAction(act_autostart)
 
     menu.addSeparator()
 

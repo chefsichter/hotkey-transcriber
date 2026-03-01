@@ -68,6 +68,23 @@ pipx is required to install the application in isolation:
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
 
+### Simple installer (Linux & Windows)
+
+You can use the local installer scripts directly (including autostart choice):
+
+- Linux:
+  ```bash
+  bash ./tools/install_linux.sh --autostart=ask
+  ```
+- Windows (PowerShell):
+  ```powershell
+  .\tools\install_windows.ps1 -Autostart ask
+  ```
+
+Autostart values: `ask`, `on`, `off`.
+On Windows, the installer also creates a Start Menu entry (`Hotkey Transcriber`).
+
+
 ### Windows 11 + AMD (ROCm via WSL)
 
 1. Install AMD Software: Adrenalin Edition for Windows (includes WSL support), then reboot.
@@ -91,7 +108,7 @@ pipx is required to install the application in isolation:
 ## 🎉 Usage
 1. Press `Alt+R` to start recording. A red symbol indicates recording.
 2. Release `R` to stop the recording. The recognized text is pasted and copied.
-3. You can use the tray menu to change the transcription interval, the recognition language or exit the program.
+3. You can use the tray menu to change the transcription interval, recognition language, and autostart, or exit the program.
 4. Model selection (tray icon → "Select model"):
     - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
     - Smaller models: reduced VRAM &amp; CPU requirements → faster transcription (slightly lower accuracy)

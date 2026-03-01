@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 hotkey-transcriber = "hotkey_transcriber.main:main"  # ⇢ `hotkey-transcriber` ist jetzt ein Konsolenbefehl
+hotkey-transcriber-autostart = "hotkey_transcriber.autostart:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}      
