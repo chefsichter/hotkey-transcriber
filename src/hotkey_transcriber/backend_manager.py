@@ -98,7 +98,7 @@ def resolve_backend(config):
             selected = "native"
 
     if selected == "wsl_amd":
-        print("AMD GPU unter Windows erkannt. Nutze WSL-Backend.")
+        print("🎮 AMD GPU unter Windows erkannt. Nutze WSL-Backend.")
         return {
             "backend": "wsl_amd",
             "device": "cpu",
