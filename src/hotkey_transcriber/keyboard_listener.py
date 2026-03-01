@@ -34,6 +34,14 @@ if sys.platform == 'win32':
     _user32 = ctypes.WinDLL('user32', use_last_error=True)
     _kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
 
+    # argtypes/restype fuer CallNextHookEx setzen – ohne diese scheitert
+    # ctypes an 64-bit lParam-Werten (OverflowError: int too long).
+    _user32.CallNextHookEx.argtypes = [
+        ctypes.wintypes.HHOOK, ctypes.c_int,
+        ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM,
+    ]
+    _user32.CallNextHookEx.restype = ctypes.c_long
+
     class KeyBoardListener:
         """
         Win32 Low-Level Keyboard Hook fuer Alt+R Push-to-Talk.
@@ -51,28 +59,31 @@ if sys.platform == 'win32':
             self._thread = None
 
         def _proc(self, nCode, wParam, lParam):
-            if nCode >= 0:
-                kb = _KBDLLHOOKSTRUCT.from_address(lParam)
-                vk = kb.vkCode
-                is_down = wParam in (_WM_KEYDOWN, _WM_SYSKEYDOWN)
-                is_up = wParam in (_WM_KEYUP, _WM_SYSKEYUP)
+            try:
+                if nCode >= 0:
+                    kb = _KBDLLHOOKSTRUCT.from_address(lParam)
+                    vk = kb.vkCode
+                    is_down = wParam in (_WM_KEYDOWN, _WM_SYSKEYDOWN)
+                    is_up = wParam in (_WM_KEYUP, _WM_SYSKEYUP)
 
-                if vk in (_VK_MENU, _VK_LMENU, _VK_RMENU):
-                    self._alt_held = is_down
+                    if vk in (_VK_MENU, _VK_LMENU, _VK_RMENU):
+                        self._alt_held = is_down
 
-                if vk == _VK_R:
-                    if is_down and self._alt_held and not self.recording:
-                        self.recording = True
-                        threading.Thread(
-                            target=self.start_callback, daemon=True
-                        ).start()
-                    if self.recording:
-                        if is_up:
-                            self.recording = False
+                    if vk == _VK_R:
+                        if is_down and self._alt_held and not self.recording:
+                            self.recording = True
                             threading.Thread(
-                                target=self.stop_callback, daemon=True
+                                target=self.start_callback, daemon=True
                             ).start()
-                        return 1  # suppress – nicht an naechsten Hook/App weiterleiten
+                        if self.recording:
+                            if is_up:
+                                self.recording = False
+                                threading.Thread(
+                                    target=self.stop_callback, daemon=True
+                                ).start()
+                            return 1  # suppress
+            except Exception:
+                pass  # Safety: Crash darf NIE die Tastatur blockieren
 
             return _user32.CallNextHookEx(self._hook_id, nCode, wParam, lParam)
 
