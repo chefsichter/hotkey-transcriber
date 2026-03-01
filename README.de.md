@@ -70,6 +70,23 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
 
+### Einfacher Installer (Linux & Windows)
+
+Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
+
+- Linux:
+  ```bash
+  bash ./tools/install_linux.sh --autostart=ask
+  ```
+- Windows (PowerShell):
+  ```powershell
+  .\tools\install_windows.ps1 -Autostart ask
+  ```
+
+Autostart-Werte: `ask`, `on`, `off`.
+Unter Windows legt der Installer zusaetzlich einen Startmenue-Eintrag (`Hotkey Transcriber`) an.
+
+
 ### Windows 11 + AMD (ROCm über WSL)
 
 1. AMD Software: Adrenalin Edition für Windows installieren (inkl. WSL-Support), danach neu starten.
