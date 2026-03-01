@@ -35,10 +35,8 @@ class KeyboardController:
         self.lock = threading.Lock()
 
     def undo(self):
-        """Send Ctrl+Z (with Alt up first)."""
+        """Send Ctrl+Z."""
         with self.lock:
-            pyautogui.keyUp("altleft")
-            time.sleep(self.wait)
             pyautogui.hotkey("ctrl", "z")
             time.sleep(self.wait)
 
@@ -54,8 +52,6 @@ class KeyboardController:
         with self.lock:
             _safe_print(text, end=end, flush=True)
             pyperclip.copy(text)
-            time.sleep(self.wait)
-            pyautogui.keyUp("altleft")
             time.sleep(self.wait)
             pyautogui.hotkey("ctrl", "v")
             time.sleep(self.wait)
