@@ -40,7 +40,23 @@ Beim ersten Start wird das gewählte Whisper-Modell einmalig von Hugging Face he
 
 Auf Windows wird bei erkannter AMD-GPU automatisch ein WSL-Backend vorbereitet und verwendet. Das Verhalten lässt sich über `HOTKEY_TRANSCRIBER_BACKEND` steuern (`auto`, `native`, `wsl_amd`).
 
-### 🧰 Standardinstallation (Default)
+### Einfacher Installer (Linux & Windows)
+
+Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
+
+- Linux:
+  ```bash
+  bash ./tools/install_linux.sh --autostart=ask
+  ```
+- Windows (PowerShell):
+  ```powershell
+  .\tools\install_windows.ps1 -Autostart ask
+  ```
+
+Autostart-Werte: `ask`, `on`, `off`.
+Unter Windows legt der Installer zusaetzlich einen Startmenue-Eintrag (`Hotkey Transcriber`) an.
+
+### 🧰 Manuelle Installation (pipx / git)
 
 #### pipx installieren
 
@@ -69,23 +85,6 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
-
-### Einfacher Installer (Linux & Windows)
-
-Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
-
-- Linux:
-  ```bash
-  bash ./tools/install_linux.sh --autostart=ask
-  ```
-- Windows (PowerShell):
-  ```powershell
-  .\tools\install_windows.ps1 -Autostart ask
-  ```
-
-Autostart-Werte: `ask`, `on`, `off`.
-Unter Windows legt der Installer zusaetzlich einen Startmenue-Eintrag (`Hotkey Transcriber`) an.
-
 
 ### Windows 11 + AMD (ROCm über WSL)
 
