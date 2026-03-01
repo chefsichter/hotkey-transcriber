@@ -126,6 +126,12 @@ class SpeechRecorder:
     # ------------------------------------------------------------------ #
 
     def start(self):
+        # Wait for a previous transcription to finish before inserting the new
+        # REC marker. Without this, the first thread can paste its text *after*
+        # the new marker, causing stop()'s backspace to delete transcribed text.
+        if self._transcribe_thread and self._transcribe_thread.is_alive():
+            self._transcribe_thread.join()
+
         with self._lock:
             if self._running:
                 return
