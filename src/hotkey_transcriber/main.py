@@ -145,6 +145,7 @@ def main():
     from PyQt5.QtWidgets import QAction, QActionGroup, QApplication, QMenu, QSystemTrayIcon
 
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
 
     icon = QIcon(get_microphone_icon_path())
     tray = QSystemTrayIcon(icon, parent=app)
