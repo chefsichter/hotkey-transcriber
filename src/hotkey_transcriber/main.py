@@ -19,7 +19,7 @@ LANGUAGE_CODES = config.get("language_codes", [["de", "Deutsch"], ["en", "Englis
 TRANSCRIBE_INTERVAL = config.get("interval", 1)
 WAIT_ON_KEYBOARD = config.get("wait_on_keyboard", 0.02)
 LANGUAGE = config.get("language", "de")
-REC_MARK = config.get("rec_mark", "REC")
+REC_MARK = config.get("rec_mark", "🔴 REC")
 CHANNELS = config.get("channels", 1)
 CHUNK_MS = config.get("chunk_ms", 30)
 DEFAULT_TRAY_TIP = "Live-Diktat (Alt+R oder Tray-Menue)"
@@ -219,8 +219,8 @@ def main():
     tray.show()
 
     tray_available = QSystemTrayIcon.isSystemTrayAvailable()
-    print("Tray-Icon verfuegbar." if tray_available else "Fehler: Tray-Icon nicht verfuegbar.")
-    print("Live-Diktat bereit (Alt+R oder ueber das Tray-Menue starten).")
+    print("📥 Tray-Icon verfuegbar." if tray_available else "❌ Fehler: Tray-Icon nicht verfuegbar.")
+    print("🎤 Live-Diktat bereit (Alt+R oder ueber das Tray-Menue starten).")
 
     sys.exit(app.exec_())
 
