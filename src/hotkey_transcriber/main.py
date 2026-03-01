@@ -21,7 +21,9 @@ LANGUAGE = config.get("language", "de")
 REC_MARK = config.get("rec_mark", "🔴 REC")
 CHANNELS = config.get("channels", 1)
 CHUNK_MS = config.get("chunk_ms", 30)
-DEFAULT_TRAY_TIP = "Live-Diktat (Alt+R oder Tray-Menue)"
+DEFAULT_TRAY_TIP = "Live-Diktat (Tray-Menue)"
+
+_DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
 MODEL_CHOICES = [
     "tiny",
     "base",
@@ -57,15 +59,87 @@ def _init_runtime():
         language=LANGUAGE,
         rec_mark=REC_MARK,
     )
-    hotkey = load_keyboard_listener(recorder)
+    hotkey_config = config.get("hotkey", _DEFAULT_HOTKEY)
+    hotkey = load_keyboard_listener(recorder, hotkey_config=hotkey_config)
 
     return backend, device, compute_type, recorder, hotkey
+
+
+def _show_hotkey_dialog(parent=None):
+    """Open a dialog to capture a new hotkey combination.
+
+    Returns a dict {"modifier": ..., "key": ...} on OK, or None on cancel.
+    Only accepts combinations that include at least one of Alt/Ctrl/Shift
+    (rejects naked keys to avoid clobbering normal typing).
+    """
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtGui import QKeySequence
+    from PyQt5.QtWidgets import (
+        QDialog, QDialogButtonBox, QKeySequenceEdit, QLabel, QVBoxLayout,
+    )
+
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("Tastenkombination ändern")
+    layout = QVBoxLayout(dialog)
+    layout.addWidget(QLabel("Neue Tastenkombination eingeben:"))
+    seq_edit = QKeySequenceEdit(dialog)
+    layout.addWidget(seq_edit)
+    hint = QLabel("<small>Erlaubt: Alt, Ctrl, Shift und Kombinationen davon + eine Taste</small>")
+    hint.setTextFormat(Qt.RichText)
+    layout.addWidget(hint)
+    buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+    layout.addWidget(buttons)
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+
+    if dialog.exec_() != QDialog.Accepted:
+        return None
+
+    seq = seq_edit.keySequence()
+    if seq.isEmpty():
+        return None
+
+    # QKeySequence stores the combo as an int; decode it.
+    # Cast modifier flags to int first — PyQt5 returns KeyboardModifiers objects,
+    # which don't support bitwise NOT (~) mixed with plain ints.
+    combo = seq[0]
+    _ALL_MODS = int(Qt.ShiftModifier) | int(Qt.ControlModifier) | int(Qt.AltModifier) | int(Qt.MetaModifier)
+    key_int = combo & ~_ALL_MODS
+    mod_int = combo & (int(Qt.ShiftModifier) | int(Qt.ControlModifier) | int(Qt.AltModifier))
+
+    if not mod_int:
+        return None  # no modifier – reject
+
+    # Build modifier string
+    parts = []
+    for qt_mod, name in [
+        (int(Qt.ShiftModifier), "shift"),
+        (int(Qt.ControlModifier), "ctrl"),
+        (int(Qt.AltModifier), "alt"),
+    ]:
+        if mod_int & qt_mod:
+            parts.append(name)
+    modifier_str = "+".join(parts)
+
+    # Resolve key name
+    key_str = QKeySequence(key_int).toString().lower()
+    if not key_str:
+        return None
+
+    return {"modifier": modifier_str, "key": key_str}
+
+
+def _hotkey_label(cfg: dict) -> str:
+    mod = cfg.get("modifier", "alt").replace("+", "+").title()
+    key = cfg.get("key", "r").upper()
+    return f"{mod}+{key}"
 
 
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     backend, device, compute_type, recorder, hotkey = _init_runtime()
+    hotkey_ref = [hotkey]  # mutable container so the exit lambda always sees the current listener
 
     from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import QAction, QActionGroup, QApplication, QMenu, QSystemTrayIcon
@@ -180,10 +254,35 @@ def main():
         lang_group.addAction(action)
         language_menu.addAction(action)
 
+    act_hotkey = QAction("Tastenkombination ändern…")
+
+    def _on_change_hotkey():
+        hotkey_ref[0].stop()
+        result = _show_hotkey_dialog()
+        if result:
+            new_hotkey = load_keyboard_listener(recorder, hotkey_config=result)
+            hotkey_ref[0] = new_hotkey
+            config["hotkey"] = result
+            save_config(config)
+            tray.showMessage(
+                "Tastenkombination geändert",
+                f"Neue Tastenkombination: {_hotkey_label(result)}",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+        else:
+            # Restart with the existing config
+            old_cfg = config.get("hotkey", _DEFAULT_HOTKEY)
+            restored = load_keyboard_listener(recorder, hotkey_config=old_cfg)
+            hotkey_ref[0] = restored
+
+    act_hotkey.triggered.connect(_on_change_hotkey)
+    menu.addAction(act_hotkey)
+
     menu.addSeparator()
 
     act_exit = QAction("Beenden")
-    act_exit.triggered.connect(lambda: (recorder.stop(), hotkey.stop(), app.quit()))
+    act_exit.triggered.connect(lambda: (recorder.stop(), hotkey_ref[0].stop(), app.quit()))
     menu.addAction(act_exit)
 
     tray.setContextMenu(menu)
@@ -191,7 +290,8 @@ def main():
 
     tray_available = QSystemTrayIcon.isSystemTrayAvailable()
     print("📥 Tray-Icon verfuegbar." if tray_available else "❌ Fehler: Tray-Icon nicht verfuegbar.")
-    print("🎤 Live-Diktat bereit (Alt+R oder ueber das Tray-Menue starten).")
+    _current_label = _hotkey_label(config.get("hotkey", _DEFAULT_HOTKEY))
+    print(f"🎤 Live-Diktat bereit ({_current_label} oder ueber das Tray-Menue starten).")
 
     sys.exit(app.exec_())
 

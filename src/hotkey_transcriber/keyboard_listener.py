@@ -12,10 +12,30 @@ if sys.platform == 'win32':
     _WM_SYSKEYDOWN = 0x0104
     _WM_SYSKEYUP = 0x0105
     _WM_QUIT = 0x0012
-    _VK_MENU = 0x12
-    _VK_LMENU = 0xA4
-    _VK_RMENU = 0xA5
-    _VK_R = 0x52
+
+    # VK sets per modifier name
+    _VK_SETS = {
+        "alt":   {0x12, 0xA4, 0xA5},
+        "ctrl":  {0x11, 0xA2, 0xA3},
+        "shift": {0x10, 0xA0, 0xA1},
+    }
+
+    _FKEY_VK = {
+        "f1": 0x70, "f2": 0x71, "f3": 0x72, "f4": 0x73,
+        "f5": 0x74, "f6": 0x75, "f7": 0x76, "f8": 0x77,
+        "f9": 0x78, "f10": 0x79, "f11": 0x7A, "f12": 0x7B,
+    }
+
+    def _build_modifier_sets(modifier: str):
+        """Return list of VK sets, one per required modifier component."""
+        parts = [p.strip().lower() for p in modifier.split("+")]
+        return [_VK_SETS[p] for p in parts if p in _VK_SETS]
+
+    def _key_to_vk(key: str) -> int:
+        k = key.lower()
+        if k in _FKEY_VK:
+            return _FKEY_VK[k]
+        return ord(k.upper())
 
     _HOOKPROC = ctypes.WINFUNCTYPE(
         ctypes.c_long, ctypes.c_int,
@@ -44,19 +64,29 @@ if sys.platform == 'win32':
 
     class KeyBoardListener:
         """
-        Win32 Low-Level Keyboard Hook fuer Alt+R Push-to-Talk.
-        Unterdrueckt 'r'-Events auf OS-Ebene waehrend der Aufnahme
+        Win32 Low-Level Keyboard Hook fuer Push-to-Talk mit konfigurierbarer Tastenkombination.
+        Unterdrueckt den Trigger-Key-Event auf OS-Ebene waehrend der Aufnahme
         (SetWindowsHookExW + return 1 statt CallNextHookEx).
         """
 
-        def __init__(self, start_callback, stop_callback):
+        def __init__(self, start_callback, stop_callback, modifier: str = "alt", key: str = "r"):
             self.start_callback = start_callback
             self.stop_callback = stop_callback
             self.recording = False
-            self._alt_held = False
+            self._modifier_sets = _build_modifier_sets(modifier)
+            self._trigger_vk = _key_to_vk(key)
+            # Track pressed state for every VK that belongs to any modifier set
+            self._modifier_vks = set().union(*self._modifier_sets) if self._modifier_sets else set()
+            self._held = set()  # currently held modifier VKs
             self._hook_id = None
             self._hook_func = None
             self._thread = None
+
+        def _modifiers_held(self) -> bool:
+            return all(
+                vk_set & self._held
+                for vk_set in self._modifier_sets
+            )
 
         def _proc(self, nCode, wParam, lParam):
             try:
@@ -66,11 +96,14 @@ if sys.platform == 'win32':
                     is_down = wParam in (_WM_KEYDOWN, _WM_SYSKEYDOWN)
                     is_up = wParam in (_WM_KEYUP, _WM_SYSKEYUP)
 
-                    if vk in (_VK_MENU, _VK_LMENU, _VK_RMENU):
-                        self._alt_held = is_down
+                    if vk in self._modifier_vks:
+                        if is_down:
+                            self._held.add(vk)
+                        elif is_up:
+                            self._held.discard(vk)
 
-                    if vk == _VK_R:
-                        if is_down and self._alt_held and not self.recording:
+                    if vk == self._trigger_vk:
+                        if is_down and self._modifiers_held() and not self.recording:
                             self.recording = True
                             threading.Thread(
                                 target=self.start_callback, daemon=True
@@ -134,21 +167,34 @@ else:
     class KeyBoardListener:
         """Keyboard-Library Fallback fuer Nicht-Windows-Plattformen."""
 
-        def __init__(self, start_callback, stop_callback):
+        def __init__(self, start_callback, stop_callback, modifier: str = "alt", key: str = "r"):
             self.start_callback = start_callback
             self.stop_callback = stop_callback
             self.recording = False
-            self._alt_held = False
+            self._modifier_parts = [p.strip().lower() for p in modifier.split("+")]
+            self._key = key.lower()
+            self._held_modifiers = set()
             self._hook = None
 
+        def _modifiers_held(self) -> bool:
+            return all(m in self._held_modifiers for m in self._modifier_parts)
+
         def _on_event(self, event):
-            if 'alt' in event.name:
-                self._alt_held = (event.event_type == keyboard.KEY_DOWN)
+            name = event.name.lower() if event.name else ""
+            # Track modifier state
+            for mod in self._modifier_parts:
+                if mod in name:
+                    if event.event_type == keyboard.KEY_DOWN:
+                        self._held_modifiers.add(mod)
+                    else:
+                        self._held_modifiers.discard(mod)
+                    return
+
+            if name != self._key:
                 return
-            if event.name != 'r':
-                return
+
             if event.event_type == keyboard.KEY_DOWN:
-                if self._alt_held and not self.recording:
+                if self._modifiers_held() and not self.recording:
                     self.recording = True
                     threading.Thread(
                         target=self.start_callback, daemon=True

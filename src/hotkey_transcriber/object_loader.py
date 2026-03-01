@@ -154,13 +154,19 @@ def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, 
     return recorder
 
 
-def load_keyboard_listener(recorder):
+def load_keyboard_listener(recorder, hotkey_config: dict = None):
     message = "Lade KeyBoardListener…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
     spinner_thread.start()
 
-    hotkey = KeyBoardListener(start_callback=recorder.start, stop_callback=recorder.stop)
+    cfg = hotkey_config or {}
+    hotkey = KeyBoardListener(
+        start_callback=recorder.start,
+        stop_callback=recorder.stop,
+        modifier=cfg.get("modifier", "alt"),
+        key=cfg.get("key", "r"),
+    )
     hotkey.start()
 
     stop_event.set()
