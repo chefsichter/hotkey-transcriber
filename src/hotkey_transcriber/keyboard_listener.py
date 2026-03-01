@@ -84,10 +84,14 @@ if sys.platform == 'win32':
             )
 
             self._hook_func = _HOOKPROC(self._proc)
+
+            # hMod=NULL fuer WH_KEYBOARD_LL — Low-Level-Hooks brauchen
+            # kein DLL-Handle, und GetModuleHandleW schlaegt auf manchen
+            # Python-Distributionen fehl (error 126).
             self._hook_id = _user32.SetWindowsHookExW(
                 _WH_KEYBOARD_LL,
                 self._hook_func,
-                _kernel32.GetModuleHandleW(None),
+                None,
                 0,
             )
             if not self._hook_id:
