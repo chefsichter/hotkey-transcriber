@@ -31,10 +31,12 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) in Echtzeit trans
 Hotkey Transcriber nutzt OpenAI Whisper fuer Echtzeit-Spracherkennung. Je nach Hardware wird eines von zwei Backends verwendet:
 
 - **NVIDIA / CPU**: `faster-whisper` (CTranslate2) — schnell, unterstuetzt int8-Quantisierung
+- **AMD-GPU unter Linux**: `faster-whisper` (CTranslate2 from Source mit HIP/ROCm gebaut) — native GPU-Beschleunigung fuer RDNA 3 (gfx1100/1101/1102) und andere unterstuetzte Architekturen
 - **AMD-GPU unter Windows**: `openai-whisper` (torch) — CTranslate2s HIP-Kernel sind mit neueren AMD-GPUs (z.B. RDNA 4 / gfx1150) nicht kompatibel, daher wechselt die App automatisch auf das torch-Backend
 
 Fuer eine fluessige, nahezu verzoegerungsfreie Transkription wird eine GPU empfohlen:
   - **NVIDIA**-GPUs mit CUDA-Treibern (>=11.7).
+  - **AMD**-GPUs unter Linux via ROCm (CTranslate2 mit HIP-Support gebaut).
   - **AMD**-GPUs unter Windows via ROCm 7.2 + PyTorch (nativ, kein WSL noetig). Alternativ wird auch ein WSL-ROCm-Backend unterstuetzt.
 
 Ohne GPU (CPU-only) ist Transkription ebenfalls moeglich, jedoch deutlich langsamer und mit einer Latenz von mehreren Sekunden pro Aufnahmeintervall.
@@ -51,6 +53,11 @@ Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
   ```bash
   bash ./tools/install_linux.sh --autostart=ask
   ```
+- Linux mit AMD-GPU (ROCm):
+  ```bash
+  bash ./tools/install_linux.sh --amd-gpu --autostart=ask
+  ```
+  Der `--amd-gpu`-Schalter erstellt eine venv (`.venv`) im Projektverzeichnis, baut CTranslate2 from Source mit HIP/ROCm-Support und installiert `faster-whisper`. Erfordert ROCm-Runtime und Build-Tools (`cmake`, `ninja`, `git`).
 - Windows (PowerShell):
   ```powershell
   .\tools\install_windows.ps1 -Autostart ask
@@ -104,6 +111,36 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    ```bash
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
+
+### Linux + AMD-GPU (ROCm)
+
+Fuer AMD-GPUs unter Linux (RDNA 3 / gfx1100 etc.) wird CTranslate2 from Source mit HIP-Support gebaut.
+
+**Voraussetzungen:**
+- ROCm-Runtime installiert (`rocminfo` und `hipconfig` muessen verfuegbar sein)
+- Build-Tools: `sudo apt install -y build-essential git cmake ninja-build pkg-config libnuma-dev`
+
+**Installation:**
+```bash
+bash ./tools/install_linux.sh --amd-gpu --autostart=ask
+```
+
+Der Installer:
+- Erkennt die GPU-Architektur automatisch via `rocminfo`
+- Erstellt eine venv (`.venv`) im Projektverzeichnis
+- Klont und baut CTranslate2 mit HIP from Source
+- Installiert `faster-whisper` und das Projekt
+- Verifiziert GPU-Zugriff
+- Erstellt einen Launcher unter `~/.local/bin/hotkey-transcriber` mit korrektem `LD_LIBRARY_PATH`
+
+Nach der Installation starten via:
+```bash
+~/.local/bin/hotkey-transcriber
+```
+
+Hinweise:
+- Das CTranslate2-Quellverzeichnis (`~/CTranslate2`, ~556 MB) kann nach der Installation geloescht werden um Speicher zu sparen.
+- Die App erkennt die AMD-GPU automatisch und nutzt das CTranslate2/faster-whisper-Backend mit `float16`.
 
 ### Windows 11 + AMD-GPU (natives ROCm)
 

@@ -1,12 +1,50 @@
 import os
 import platform
 import subprocess
+import sys
 
 from hotkey_transcriber.device_detector import detect_device
 
 
 def _run(cmd):
     return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL).strip()
+
+
+def _find_rocm_root():
+    """Return the ROCm installation directory, or None."""
+    import glob
+
+    # Explicit symlink first
+    if os.path.isdir("/opt/rocm"):
+        return "/opt/rocm"
+
+    # Versioned directories (e.g. /opt/rocm-7.2.0)
+    candidates = sorted(glob.glob("/opt/rocm-*"), reverse=True)
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+
+    return None
+
+
+def is_linux_amd_gpu():
+    if sys.platform != "linux":
+        return False
+
+    if _find_rocm_root() is not None:
+        return True
+
+    try:
+        lspci = _run(["lspci"])
+        for line in lspci.splitlines():
+            lower = line.lower()
+            if any(k in lower for k in ("vga", "3d", "display")):
+                if "amd" in lower or "radeon" in lower:
+                    return True
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+
+    return False
 
 
 def is_windows_amd_gpu():
@@ -107,6 +145,16 @@ def resolve_backend(config):
 
     device = detect_device()
     compute_type = "float16" if device == "cuda" else "float32"
+
+    # Linux + AMD GPU: use CTranslate2/faster-whisper with ROCm (no torch backend)
+    if sys.platform == "linux" and is_linux_amd_gpu() and device != "cpu":
+        print("🎮 AMD GPU unter Linux erkannt. Nutze ROCm/CTranslate2-Backend.")
+        return {
+            "backend": "native",
+            "device": device,
+            "compute_type": "float16",
+            "use_torch_whisper": False,
+        }
 
     # CTranslate2's HIP kernels crash on RDNA 4 (gfx1150) and possibly other
     # newer AMD GPUs on Windows.  Use the torch-based openai-whisper backend
