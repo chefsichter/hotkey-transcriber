@@ -2,7 +2,7 @@ param(
     [string]$RocmVenv = "",
     [string]$WorkRoot = "",
     [string]$CTranslate2Version = "4.7.1",
-    [string]$RocmMergedRoot = "C:\rdev\_rocm_sdk_devel",
+    [string]$RocmMergedRoot = "",
     [string]$HipArch = "gfx1150",
     [bool]$InstallAmdRocmFromGuide = $true,
     [string]$RocmCoreWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_core-7.2.0.dev0-py3-none-win_amd64.whl",
@@ -15,6 +15,17 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Invoke-External {
+    param(
+        [string]$Name,
+        [scriptblock]$Script
+    )
+    & $Script
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Name failed with exit code $LASTEXITCODE"
+    }
+}
 
 $cwd = (Get-Location).Path
 if ([string]::IsNullOrWhiteSpace($RocmVenv)) {
@@ -33,19 +44,20 @@ if ([string]::IsNullOrWhiteSpace($RocmVenv)) {
 if ([string]::IsNullOrWhiteSpace($WorkRoot)) {
     $WorkRoot = Join-Path $cwd "build\rocm-win-ct2"
 }
+if ([string]::IsNullOrWhiteSpace($RocmMergedRoot)) {
+    $RocmMergedRoot = Join-Path $WorkRoot "_rocm_sdk_devel"
+}
 
 $python = Join-Path $RocmVenv "Scripts\python.exe"
 $cmakeExe = Join-Path $RocmVenv "Scripts\cmake.exe"
+$rocmMergedRootPosix = $RocmMergedRoot.Replace("\", "/")
 
 if (-not (Test-Path $python)) {
     if (-not $InstallAmdRocmFromGuide) {
         throw "Python not found in ROCm venv: $python"
     }
     Write-Host "==> Create Python 3.12 venv at $RocmVenv"
-    & py -3.12 -m venv $RocmVenv
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create Python 3.12 venv. Install Python 3.12 and retry."
-    }
+    Invoke-External "Create Python 3.12 venv" { & py -3.12 -m venv $RocmVenv }
 }
 
 $pyVer = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
@@ -55,22 +67,28 @@ if ($pyVer -ne "3.12") {
 
 if ($InstallAmdRocmFromGuide) {
     Write-Host "==> Install ROCm SDK packages (AMD guide, Windows)"
-    & $python -m pip install --upgrade pip setuptools wheel | Out-Host
+    Invoke-External "Upgrade pip tooling" { & $python -m pip install --upgrade pip setuptools wheel }
     $env:PIP_PROGRESS_BAR = "off"
-    & $python -m pip install --no-cache-dir `
-        $RocmCoreWheel `
-        $RocmDevelWheel `
-        $RocmLibsWheel `
-        $RocmMetaTar | Out-Host
+    Invoke-External "Install ROCm SDK wheels" {
+        & $python -m pip install --no-cache-dir `
+            $RocmCoreWheel `
+            $RocmDevelWheel `
+            $RocmLibsWheel `
+            $RocmMetaTar
+    }
 
     Write-Host "==> Install ROCm PyTorch wheels (AMD guide, Windows)"
-    & $python -m pip install --no-cache-dir `
-        $TorchWheel `
-        $TorchAudioWheel `
-        $TorchVisionWheel | Out-Host
+    Invoke-External "Install ROCm PyTorch wheels" {
+        & $python -m pip install --no-cache-dir `
+            $TorchWheel `
+            $TorchAudioWheel `
+            $TorchVisionWheel
+    }
 
     Write-Host "==> Verify torch ROCm setup"
-    & $python -c "import torch; print(torch.__version__); print('cuda', torch.cuda.is_available()); print('hip', torch.version.hip); print('gpu', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none')"
+    Invoke-External "Verify torch ROCm setup" {
+        & $python -c "import torch; print(torch.__version__); print('cuda', torch.cuda.is_available()); print('hip', torch.version.hip); print('gpu', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none')"
+    }
 }
 
 $coreRoot = Join-Path $RocmVenv "Lib\site-packages\_rocm_sdk_core"
@@ -82,11 +100,13 @@ if (-not (Test-Path $libsRoot)) { throw "Missing _rocm_sdk_libraries_custom in $
 if (-not (Test-Path $develTar)) { throw "Missing rocm_sdk_devel/_devel.tar in $RocmVenv" }
 
 Write-Host "==> Ensure build tools"
-& $python -m pip install --upgrade pip setuptools wheel cmake ninja pybind11 packaging | Out-Host
+Invoke-External "Install build tools" {
+    & $python -m pip install --upgrade pip setuptools wheel cmake ninja packaging
+}
 
 Write-Host "==> Extract ROCm devel payload"
 New-Item -ItemType Directory -Path $RocmMergedRoot -Force | Out-Null
-& $python -c @"
+Invoke-External "Extract ROCm devel payload" { & $python -c @"
 import tarfile, pathlib
 src = pathlib.Path(r'$develTar')
 dst = pathlib.Path(r'$([System.IO.Path]::GetDirectoryName($RocmMergedRoot))')
@@ -94,6 +114,7 @@ with tarfile.open(src, 'r') as tf:
     tf.extractall(dst)
 print('extracted', src)
 "@
+}
 
 Write-Host "==> Merge core + libraries into devel root"
 Copy-Item -Recurse -Force (Join-Path $coreRoot "bin\*") (Join-Path $RocmMergedRoot "bin\")
@@ -124,45 +145,61 @@ New-Item -ItemType Directory -Path (Join-Path $srcRoot "third_party\cpu_features
 Copy-Item -Recurse -Force (Join-Path $depsDir "spdlog-1.15.3\*") (Join-Path $srcRoot "third_party\spdlog\")
 Copy-Item -Recurse -Force (Join-Path $depsDir "cpu_features-0.9.0\*") (Join-Path $srcRoot "third_party\cpu_features\")
 
-$env:ROCM_PATH = $RocmMergedRoot.Replace("\", "/")
+$env:ROCM_PATH = $rocmMergedRootPosix
 $env:HIP_PLATFORM = "amd"
 $env:HIP_RUNTIME = "rocclr"
 $env:PATH = "$RocmMergedRoot\lib\llvm\bin;$RocmMergedRoot\bin;" + $env:PATH
+$hipLangDir = Join-Path $RocmMergedRoot "lib\cmake\hip-lang"
+if (-not (Test-Path (Join-Path $hipLangDir "hip-lang-config.cmake"))) {
+    throw "Missing hip-lang config in merged ROCm root: $hipLangDir"
+}
+$cmakePrefix = @(
+    $rocmMergedRootPosix,
+    (Join-Path $RocmMergedRoot "lib/cmake").Replace("\", "/"),
+    $hipLangDir.Replace("\", "/")
+) -join ";"
 
 Write-Host "==> Configure CTranslate2 HIP build"
-& $cmakeExe -S $srcRoot -B $buildDir -G Ninja `
-    -DCMAKE_BUILD_TYPE=Release `
-    -DWITH_HIP=ON `
-    -DWITH_CUDA=OFF `
-    -DWITH_MKL=OFF `
-    -DOPENMP_RUNTIME=NONE `
-    -DBUILD_CLI=OFF `
-    -DCMAKE_HIP_ARCHITECTURES=$HipArch `
-    -DCMAKE_HIP_COMPILER="$RocmMergedRoot/lib/llvm/bin/clang++.exe" `
-    -DCMAKE_HIP_COMPILER_ROCM_ROOT="$RocmMergedRoot" `
-    -DCMAKE_PREFIX_PATH="$RocmMergedRoot" `
-    -DCMAKE_HIP_FLAGS="--rocm-path=$RocmMergedRoot --rocm-device-lib-path=$RocmMergedRoot/lib/llvm/amdgcn/bitcode" `
-    -DCMAKE_CXX_FLAGS="--rocm-path=$RocmMergedRoot --rocm-device-lib-path=$RocmMergedRoot/lib/llvm/amdgcn/bitcode" `
-    -DCMAKE_RC_COMPILER="C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64/rc.exe" `
-    -DCMAKE_MT="C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64/mt.exe"
+Invoke-External "Configure CTranslate2 HIP build" {
+    & $cmakeExe -S $srcRoot -B $buildDir -G Ninja `
+        -DCMAKE_BUILD_TYPE=Release `
+        -DWITH_HIP=ON `
+        -DWITH_CUDA=OFF `
+        -DWITH_MKL=OFF `
+        -DOPENMP_RUNTIME=NONE `
+        -DBUILD_CLI=OFF `
+        -DCMAKE_HIP_ARCHITECTURES=$HipArch `
+        -DCMAKE_HIP_COMPILER="$rocmMergedRootPosix/lib/llvm/bin/clang++.exe" `
+        -DCMAKE_HIP_COMPILER_ROCM_ROOT="$rocmMergedRootPosix" `
+        -DCMAKE_PREFIX_PATH="$cmakePrefix" `
+        -Dhip-lang_DIR="$($hipLangDir.Replace("\", "/"))" `
+        -DCMAKE_HIP_FLAGS="--rocm-path=$rocmMergedRootPosix --rocm-device-lib-path=$rocmMergedRootPosix/lib/llvm/amdgcn/bitcode" `
+        -DCMAKE_CXX_FLAGS="--rocm-path=$rocmMergedRootPosix --rocm-device-lib-path=$rocmMergedRootPosix/lib/llvm/amdgcn/bitcode" `
+        -DCMAKE_RC_COMPILER="C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64/rc.exe" `
+        -DCMAKE_MT="C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64/mt.exe"
+}
 
 Write-Host "==> Build + install native library"
-& $cmakeExe --build $buildDir --config Release -j 8
-& $cmakeExe --install $buildDir --prefix $RocmVenv
+Invoke-External "Build CTranslate2" { & $cmakeExe --build $buildDir --config Release -j 8 }
+Invoke-External "Install CTranslate2 native artifacts" { & $cmakeExe --install $buildDir --prefix $RocmVenv }
 
 Write-Host "==> Build + install Python wheel"
 Push-Location (Join-Path $srcRoot "python")
-$env:CTRANSLATE2_ROOT = $RocmVenv.Replace("\", "/")
-& $python -m pip install -r install_requirements.txt | Out-Host
-& $python setup.py bdist_wheel | Out-Host
-$wheel = Get-ChildItem -Path dist -Filter "ctranslate2-$CTranslate2Version-*.whl" | Select-Object -First 1
-if (-not $wheel) { throw "Built wheel not found in dist/." }
-$env:PIP_PROGRESS_BAR = "off"
-& $python -m pip install --force-reinstall $wheel.FullName | Out-Host
-Pop-Location
+try {
+    $env:CTRANSLATE2_ROOT = $RocmVenv.Replace("\", "/")
+    Invoke-External "Install Python build requirements" { & $python -m pip install -r install_requirements.txt }
+    Invoke-External "Build ctranslate2 wheel" { & $python setup.py bdist_wheel }
+    $wheel = Get-ChildItem -Path dist -Filter "ctranslate2-$CTranslate2Version-*.whl" | Select-Object -First 1
+    if (-not $wheel) { throw "Built wheel not found in dist/." }
+    $env:PIP_PROGRESS_BAR = "off"
+    Invoke-External "Install ctranslate2 wheel" { & $python -m pip install --force-reinstall $wheel.FullName }
+}
+finally {
+    Pop-Location
+}
 
 Write-Host "==> Smoke test"
-& $python -c @"
+Invoke-External "Run smoke test" { & $python -c @"
 import os
 os.add_dll_directory(r'$RocmVenv\\bin')
 os.add_dll_directory(r'$RocmMergedRoot\\bin')
@@ -173,6 +210,7 @@ print('torch cuda', torch.cuda.is_available())
 if torch.cuda.is_available():
     print('gpu', torch.cuda.get_device_name(0))
 "@
+}
 
 Write-Host "Done."
 Write-Host "For native Windows ROCm run hotkey-transcriber with:"
