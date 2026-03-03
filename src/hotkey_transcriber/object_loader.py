@@ -117,7 +117,8 @@ def _prompt_and_set_hf_token(repo_id: str) -> bool:
     return True
 
 
-def load_model(size, device, compute_type, cache_dir=None, backend="native"):
+def load_model(size, device, compute_type, cache_dir=None, backend="native",
+               use_torch_whisper=False):
     if backend == "wsl_amd":
         try:
             return WslWhisperModel(model_name=size)
@@ -125,6 +126,9 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native"):
             print(f"WSL-Backend fehlgeschlagen ({exc}). Fallback auf CPU-Backend.")
             device = "cpu"
             compute_type = "float32"
+
+    if use_torch_whisper:
+        return _load_torch_whisper(size, device, compute_type)
 
     try:
         model_path = download_model(
@@ -179,6 +183,28 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native"):
     spinner_thread.join()
     print(f"✅ Whisper-Modell '{size}' auf '{device}' bereit.", flush=True)
 
+    return model
+
+
+def _load_torch_whisper(size, device, compute_type):
+    from hotkey_transcriber.torch_whisper_backend import TorchWhisperModel
+
+    print(
+        "AMD-GPU erkannt – verwende torch-Backend (openai-whisper) "
+        "statt CTranslate2, da dessen HIP-Kernel auf diesem Geraet nicht kompatibel sind.",
+        flush=True,
+    )
+
+    stop_event = threading.Event()
+    message = f"Lade Whisper-Modell '{size}' auf '{device}' (torch)…"
+    spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
+    spinner_thread.start()
+
+    model = TorchWhisperModel(model_size=size, device=device, compute_type=compute_type)
+
+    stop_event.set()
+    spinner_thread.join()
+    print(f"✅ Whisper-Modell '{size}' auf '{device}' bereit (torch-Backend).", flush=True)
     return model
 
 

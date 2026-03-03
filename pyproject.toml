@@ -19,6 +19,9 @@ dependencies = [
     "PyQt5",
 ]
 
+[project.optional-dependencies]
+amd = ["openai-whisper"]
+
 [project.scripts]
 hotkey-transcriber = "hotkey_transcriber.main:main"  # ⇢ `hotkey-transcriber` ist jetzt ein Konsolenbefehl
 hotkey-transcriber-autostart = "hotkey_transcriber.autostart:main"

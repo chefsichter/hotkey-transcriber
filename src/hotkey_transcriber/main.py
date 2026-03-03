@@ -118,12 +118,14 @@ def _init_runtime():
     backend = runtime["backend"]
     device = runtime["device"]
     compute_type = runtime["compute_type"]
+    use_torch_whisper = runtime.get("use_torch_whisper", False)
 
     model = load_model(
         size=MODEL_SIZE,
         device=device,
         compute_type=compute_type,
         backend=backend,
+        use_torch_whisper=use_torch_whisper,
     )
 
     recorder = load_speech_recorder(
@@ -137,7 +139,7 @@ def _init_runtime():
     hotkey_config = config.get("hotkey", _DEFAULT_HOTKEY)
     hotkey = load_keyboard_listener(recorder, hotkey_config=hotkey_config)
 
-    return backend, device, compute_type, recorder, hotkey
+    return backend, device, compute_type, use_torch_whisper, recorder, hotkey
 
 
 def _show_hotkey_dialog(parent=None):
@@ -218,7 +220,7 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     log_path = _setup_log_capture()
 
-    backend, device, compute_type, recorder, hotkey = _init_runtime()
+    backend, device, compute_type, use_torch_whisper, recorder, hotkey = _init_runtime()
     hotkey_ref = [hotkey]  # mutable container so the exit lambda always sees the current listener
 
     from PyQt5.QtGui import QIcon, QTextCursor
@@ -286,6 +288,7 @@ def main():
                         device=device,
                         compute_type=compute_type,
                         backend=backend,
+                        use_torch_whisper=use_torch_whisper,
                     )
                 except Exception as exc:
                     tray.showMessage(

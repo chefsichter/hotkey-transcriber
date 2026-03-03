@@ -1,7 +1,7 @@
 {
   "model_size": "large-v3-turbo",
   "hotkey": {
-    "modifier": "shift+ctrl",
+    "modifier": "alt",
     "key": "r"
   }
 }
