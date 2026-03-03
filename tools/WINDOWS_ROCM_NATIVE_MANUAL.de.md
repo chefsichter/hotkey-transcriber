@@ -39,7 +39,7 @@ Das Script erledigt:
 - Suche der venv im aktuellen Verzeichnis (`.\.venv`, dann `.\venv`) oder Anlegen von `.\.venv`
 - Optional automatische Installation der AMD-ROCm-Windows-Pakete (Guide-URLs, Python 3.12)
 - Entpacken der `rocm_sdk_devel` Payload
-- Mergen von `core` + `libraries` + `devel` unter `C:\rdev\_rocm_sdk_devel`
+- Mergen von `core` + `libraries` + `devel` unter `.\build\rocm-win-ct2\_rocm_sdk_devel` (oder eigener Pfad)
 - Download der CTranslate2 Quellen (v4.7.1)
 - Nachziehen benoetigter Third-Party Quellen (`spdlog`, `cpu_features`)
 - HIP-Build + Install nach `<ROCM_VENV>\bin`/`<ROCM_VENV>\lib`
@@ -63,13 +63,13 @@ $env:HOTKEY_TRANSCRIBER_DLL_DIRS="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk
 ## 4) Manuelle Verifikation
 
 ```powershell
-.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(r'C:\rdev\_rocm_sdk_devel\bin'); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); import ctranslate2; print(ctranslate2.__version__); print(ctranslate2.get_supported_compute_types('cuda'))"
+.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(str(pathlib.Path(r'.\build\rocm-win-ct2\_rocm_sdk_devel\bin').resolve())); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); import ctranslate2; print(ctranslate2.__version__); print(ctranslate2.get_supported_compute_types('cuda'))"
 ```
 
 `faster-whisper` GPU Test:
 
 ```powershell
-.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(r'C:\rdev\_rocm_sdk_devel\bin'); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); from faster_whisper import WhisperModel; m=WhisperModel('tiny.en', device='cuda', compute_type='float16'); print('ok')"
+.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(str(pathlib.Path(r'.\build\rocm-win-ct2\_rocm_sdk_devel\bin').resolve())); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); from faster_whisper import WhisperModel; m=WhisperModel('tiny.en', device='cuda', compute_type='float16'); print('ok')"
 ```
 
 ## 5) Typische Fehlerbilder
@@ -84,7 +84,7 @@ $env:HOTKEY_TRANSCRIBER_DLL_DIRS="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk
 
 3. `hip/hip_runtime.h file not found`
    - ROCm Include-Header nicht korrekt im gemergten Root.
-   - Script erneut laufen lassen (kopiert `core\include` nach `C:\rdev\_rocm_sdk_devel\include`).
+   - Script erneut laufen lassen (kopiert `core\include` in das konfigurierte `ROCmMergedRoot\include`).
 
 4. Python 3.13 in venv
    - AMD-Wheels in dieser Anleitung sind `cp312`.

@@ -123,7 +123,7 @@ Du kannst `ctranslate2` mit HIP fuer native Windows-Nutzung neu bauen. Das Skrip
 ```powershell
 .\tools\build_ctranslate2_rocm_windows.ps1 `
   -RocmVenv ".\.venv" `
-  -RocmMergedRoot "C:\rdev\_rocm_sdk_devel" `
+  -RocmMergedRoot ".\build\rocm-win-ct2\_rocm_sdk_devel" `
   -HipArch "gfx1150"
 ```
 
