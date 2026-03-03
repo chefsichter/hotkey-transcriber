@@ -1,23 +1,76 @@
 param(
-    [string]$RocmVenv = "C:\Users\user\Documents\rocm\.venv",
-    [string]$WorkRoot = "C:\Users\user\Documents\hotkey-transcriber\build\rocm-win-ct2",
+    [string]$RocmVenv = "",
+    [string]$WorkRoot = "",
     [string]$CTranslate2Version = "4.7.1",
     [string]$RocmMergedRoot = "C:\rdev\_rocm_sdk_devel",
-    [string]$HipArch = "gfx1150"
+    [string]$HipArch = "gfx1150",
+    [bool]$InstallAmdRocmFromGuide = $true,
+    [string]$RocmCoreWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_core-7.2.0.dev0-py3-none-win_amd64.whl",
+    [string]$RocmDevelWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_devel-7.2.0.dev0-py3-none-win_amd64.whl",
+    [string]$RocmLibsWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_libraries_custom-7.2.0.dev0-py3-none-win_amd64.whl",
+    [string]$RocmMetaTar = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm-7.2.0.dev0.tar.gz",
+    [string]$TorchWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torch-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl",
+    [string]$TorchAudioWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchaudio-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl",
+    [string]$TorchVisionWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvision-0.24.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
 )
 
 $ErrorActionPreference = "Stop"
+
+$cwd = (Get-Location).Path
+if ([string]::IsNullOrWhiteSpace($RocmVenv)) {
+    $dotVenv = Join-Path $cwd ".venv"
+    $plainVenv = Join-Path $cwd "venv"
+    $dotPy = Join-Path $dotVenv "Scripts\python.exe"
+    $plainPy = Join-Path $plainVenv "Scripts\python.exe"
+    if (Test-Path $dotPy) {
+        $RocmVenv = $dotVenv
+    } elseif (Test-Path $plainPy) {
+        $RocmVenv = $plainVenv
+    } else {
+        $RocmVenv = $dotVenv
+    }
+}
+if ([string]::IsNullOrWhiteSpace($WorkRoot)) {
+    $WorkRoot = Join-Path $cwd "build\rocm-win-ct2"
+}
 
 $python = Join-Path $RocmVenv "Scripts\python.exe"
 $cmakeExe = Join-Path $RocmVenv "Scripts\cmake.exe"
 
 if (-not (Test-Path $python)) {
-    throw "Python not found in ROCm venv: $python"
+    if (-not $InstallAmdRocmFromGuide) {
+        throw "Python not found in ROCm venv: $python"
+    }
+    Write-Host "==> Create Python 3.12 venv at $RocmVenv"
+    & py -3.12 -m venv $RocmVenv
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create Python 3.12 venv. Install Python 3.12 and retry."
+    }
 }
 
 $pyVer = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
 if ($pyVer -ne "3.12") {
     throw "ROCm Windows wheels currently require Python 3.12 (found: $pyVer)."
+}
+
+if ($InstallAmdRocmFromGuide) {
+    Write-Host "==> Install ROCm SDK packages (AMD guide, Windows)"
+    & $python -m pip install --upgrade pip setuptools wheel | Out-Host
+    $env:PIP_PROGRESS_BAR = "off"
+    & $python -m pip install --no-cache-dir `
+        $RocmCoreWheel `
+        $RocmDevelWheel `
+        $RocmLibsWheel `
+        $RocmMetaTar | Out-Host
+
+    Write-Host "==> Install ROCm PyTorch wheels (AMD guide, Windows)"
+    & $python -m pip install --no-cache-dir `
+        $TorchWheel `
+        $TorchAudioWheel `
+        $TorchVisionWheel | Out-Host
+
+    Write-Host "==> Verify torch ROCm setup"
+    & $python -c "import torch; print(torch.__version__); print('cuda', torch.cuda.is_available()); print('hip', torch.version.hip); print('gpu', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none')"
 }
 
 $coreRoot = Join-Path $RocmVenv "Lib\site-packages\_rocm_sdk_core"

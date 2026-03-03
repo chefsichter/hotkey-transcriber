@@ -36,6 +36,8 @@ Im Repo:
 ```
 
 Das Script erledigt:
+- Suche der venv im aktuellen Verzeichnis (`.\.venv`, dann `.\venv`) oder Anlegen von `.\.venv`
+- Optional automatische Installation der AMD-ROCm-Windows-Pakete (Guide-URLs, Python 3.12)
 - Entpacken der `rocm_sdk_devel` Payload
 - Mergen von `core` + `libraries` + `devel` unter `C:\rdev\_rocm_sdk_devel`
 - Download der CTranslate2 Quellen (v4.7.1)
@@ -55,19 +57,19 @@ hotkey-transcriber
 Optional fuer freie DLL-Verzeichnisse:
 
 ```powershell
-$env:HOTKEY_TRANSCRIBER_DLL_DIRS="C:\rdev\_rocm_sdk_devel\bin;C:\Users\<you>\Documents\rocm\.venv\bin"
+$env:HOTKEY_TRANSCRIBER_DLL_DIRS="C:\rdev\_rocm_sdk_devel\bin;$((Resolve-Path .\.venv).Path)\bin"
 ```
 
 ## 4) Manuelle Verifikation
 
 ```powershell
-.\.venv\Scripts\python.exe -c "import os; os.add_dll_directory(r'C:\rdev\_rocm_sdk_devel\bin'); os.add_dll_directory(r'C:\Users\user\Documents\rocm\.venv\bin'); import ctranslate2; print(ctranslate2.__version__); print(ctranslate2.get_supported_compute_types('cuda'))"
+.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(r'C:\rdev\_rocm_sdk_devel\bin'); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); import ctranslate2; print(ctranslate2.__version__); print(ctranslate2.get_supported_compute_types('cuda'))"
 ```
 
 `faster-whisper` GPU Test:
 
 ```powershell
-.\.venv\Scripts\python.exe -c "import os; os.add_dll_directory(r'C:\rdev\_rocm_sdk_devel\bin'); os.add_dll_directory(r'C:\Users\user\Documents\rocm\.venv\bin'); from faster_whisper import WhisperModel; m=WhisperModel('tiny.en', device='cuda', compute_type='float16'); print('ok')"
+.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(r'C:\rdev\_rocm_sdk_devel\bin'); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); from faster_whisper import WhisperModel; m=WhisperModel('tiny.en', device='cuda', compute_type='float16'); print('ok')"
 ```
 
 ## 5) Typische Fehlerbilder
@@ -87,4 +89,3 @@ $env:HOTKEY_TRANSCRIBER_DLL_DIRS="C:\rdev\_rocm_sdk_devel\bin;C:\Users\<you>\Doc
 4. Python 3.13 in venv
    - AMD-Wheels in dieser Anleitung sind `cp312`.
    - Neue Python-3.12-venv verwenden.
-

@@ -116,6 +116,29 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    hotkey-transcriber
    ```
 
+### Windows + AMD natives ROCm (experimentell)
+
+Du kannst `ctranslate2` mit HIP fuer native Windows-Nutzung neu bauen. Das Skript kann dabei die ROCm-Windows-Python-Pakete gemaess offizieller AMD-Anleitung automatisch installieren:
+
+```powershell
+.\tools\build_ctranslate2_rocm_windows.ps1 `
+  -RocmVenv ".\.venv" `
+  -RocmMergedRoot "C:\rdev\_rocm_sdk_devel" `
+  -HipArch "gfx1150"
+```
+
+Hinweise:
+- Python `3.12` ist fuer die AMD-ROCm-Wheels (`cp312`) erforderlich.
+- `-InstallAmdRocmFromGuide` ist standardmaessig `true`.
+- Wenn `-RocmVenv` fehlt, prueft das Skript im aktuellen Verzeichnis zuerst `.\.venv`, dann `.\venv`; falls beides fehlt, wird `.\.venv` erstellt.
+- Wenn deine ROCm-venv bereits komplett vorbereitet ist, kannst du die Paket-Installation ueberspringen:
+  ```powershell
+  .\tools\build_ctranslate2_rocm_windows.ps1 -InstallAmdRocmFromGuide:$false
+  ```
+
+Detailanleitung (Deutsch):
+- [Windows ROCm + CTranslate2 manuell](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
+
 ## 🪟 Programm starten
 - Nach Aktivierung der virtuellen Umgebung genügt der Befehl:
   ```cmd

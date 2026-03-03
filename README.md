@@ -116,11 +116,23 @@ pipx is required to install the application in isolation:
 
 ### Windows + AMD native ROCm (experimental)
 
-If you already have the ROCm Windows Python environment from AMD's guide (`rocm-sdk-core`, `rocm-sdk-devel`, ROCm PyTorch in a Python 3.12 venv), you can rebuild `ctranslate2` with HIP for native Windows use:
+You can rebuild `ctranslate2` with HIP for native Windows use, and the script can install the ROCm Windows Python packages from AMD's official guide automatically:
 
 ```powershell
-.\tools\build_ctranslate2_rocm_windows.ps1
+.\tools\build_ctranslate2_rocm_windows.ps1 `
+  -RocmVenv ".\.venv" `
+  -RocmMergedRoot "C:\rdev\_rocm_sdk_devel" `
+  -HipArch "gfx1150"
 ```
+
+Notes:
+- Python `3.12` is required for AMD ROCm wheels (`cp312`).
+- `-InstallAmdRocmFromGuide` defaults to `true`.
+- If `-RocmVenv` is omitted, the script checks current directory in this order: `.\.venv`, then `.\venv`; if neither exists, it creates `.\.venv`.
+- If your ROCm venv is already fully prepared, you can skip package install:
+  ```powershell
+  .\tools\build_ctranslate2_rocm_windows.ps1 -InstallAmdRocmFromGuide:$false
+  ```
 
 Detailed step-by-step manual (German):
 - [Windows ROCm + CTranslate2 manual](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
