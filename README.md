@@ -114,6 +114,25 @@ pipx is required to install the application in isolation:
    hotkey-transcriber
    ```
 
+### Windows + AMD native ROCm (experimental)
+
+If you already have the ROCm Windows Python environment from AMD's guide (`rocm-sdk-core`, `rocm-sdk-devel`, ROCm PyTorch in a Python 3.12 venv), you can rebuild `ctranslate2` with HIP for native Windows use:
+
+```powershell
+.\tools\build_ctranslate2_rocm_windows.ps1
+```
+
+Detailed step-by-step manual (German):
+- [Windows ROCm + CTranslate2 manual](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
+
+Then start the app with native backend:
+
+```powershell
+$env:HOTKEY_TRANSCRIBER_BACKEND="native"
+$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="C:\rdev\_rocm_sdk_devel"
+hotkey-transcriber
+```
+
 ## 🪟 Start program
 - After activating the virtual environment, the command is sufficient:
   ```cmd
