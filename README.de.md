@@ -38,7 +38,7 @@ Ohne GPU (CPU-only) ist Transkription ebenfalls möglich, jedoch deutlich langsa
 
 Beim ersten Start wird das gewählte Whisper-Modell einmalig von Hugging Face heruntergeladen und danach aus dem lokalen Cache genutzt. Für diesen initialen Download ist eine Internetverbindung erforderlich.
 
-Auf Windows wird bei erkannter AMD-GPU automatisch ein WSL-Backend vorbereitet und verwendet. Das Verhalten lässt sich über `HOTKEY_TRANSCRIBER_BACKEND` steuern (`auto`, `native`, `wsl_amd`).
+Auf Windows 11 wird bei erkannter AMD-GPU automatisch ein WSL-Backend vorbereitet und verwendet. Das Verhalten lässt sich über `HOTKEY_TRANSCRIBER_BACKEND` steuern (`auto`, `native`, `wsl_amd`).
 
 ### Einfacher Installer (Linux & Windows)
 
@@ -116,7 +116,7 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    hotkey-transcriber
    ```
 
-### Windows + AMD natives ROCm (experimentell)
+### Windows 11 + AMD natives ROCm (experimentell)
 
 Du kannst `ctranslate2` mit HIP fuer native Windows-Nutzung neu bauen. Das Skript kann dabei die ROCm-Windows-Python-Pakete gemaess offizieller AMD-Anleitung automatisch installieren:
 
@@ -137,8 +137,9 @@ Hinweise:
   .\tools\build_ctranslate2_rocm_windows.ps1 -InstallAmdRocmFromGuide:$false
   ```
 
-Detailanleitung (Deutsch):
-- [Windows ROCm + CTranslate2 manuell](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
+Detaillierte Schritt-fuer-Schritt-Anleitungen:
+- [Windows ROCm + CTranslate2 Anleitung (Deutsch)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
+- [Windows ROCm + CTranslate2 manual (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
 
 ## 🪟 Programm starten
 - Nach Aktivierung der virtuellen Umgebung genügt der Befehl:

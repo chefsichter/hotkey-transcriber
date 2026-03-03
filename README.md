@@ -38,7 +38,7 @@ Without a GPU (CPU-only), transcription is also possible, but significantly slow
 
 On first start, the selected Whisper model is downloaded once from Hugging Face and then reused from the local cache. An internet connection is required for this initial download.
 
-On Windows, when an AMD GPU is detected, the app now prepares and uses a WSL backend automatically. You can override this with `HOTKEY_TRANSCRIBER_BACKEND` (`auto`, `native`, `wsl_amd`).
+On Windows 11, when an AMD GPU is detected, the app now prepares and uses a WSL backend automatically. You can override this with `HOTKEY_TRANSCRIBER_BACKEND` (`auto`, `native`, `wsl_amd`).
 
 ### Simple installer (Linux & Windows)
 
@@ -114,7 +114,7 @@ pipx is required to install the application in isolation:
    hotkey-transcriber
    ```
 
-### Windows + AMD native ROCm (experimental)
+### Windows 11 + AMD native ROCm (experimental)
 
 You can rebuild `ctranslate2` with HIP for native Windows use, and the script can install the ROCm Windows Python packages from AMD's official guide automatically:
 
