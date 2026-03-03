@@ -17,6 +17,7 @@ dependencies = [
     "pyautogui",
     "pyperclip",
     "PyQt5",
+    "evdev; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]
@@ -61,6 +62,7 @@ requires = [
     "pyautogui",
     "pyperclip",
     "PyQt5",
+    "evdev; sys_platform == 'linux'",
 ]
 
 [tool.briefcase.app.hotkey_transcriber.linux]

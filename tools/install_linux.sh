@@ -31,6 +31,14 @@ if ! command -v pipx >/dev/null 2>&1; then
   echo "pipx installed. Reopen your shell if pipx is still not found in PATH."
 fi
 
+# --- input-Gruppe fuer evdev (globaler Hotkey ohne Root) ---
+if ! groups | grep -qw input; then
+  echo "Adding $USER to 'input' group (needed for global hotkey)..."
+  sudo usermod -aG input "$USER"
+  echo "⚠️  Gruppenaenderung wird erst nach erneutem Login aktiv."
+  echo "   Nach der Installation bitte ab- und wieder anmelden (oder 'newgrp input')."
+fi
+
 echo "Installing hotkey-transcriber with pipx..."
 pipx install --force "${REPO_ROOT}"
 
