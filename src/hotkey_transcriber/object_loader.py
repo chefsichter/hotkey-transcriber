@@ -1,15 +1,12 @@
 ﻿import itertools
 import os
 import shutil
-import sys
 import threading
 import time
-from getpass import getpass
 from pathlib import Path
 
 from faster_whisper import WhisperModel, download_model
-from huggingface_hub import login as hf_login
-from huggingface_hub.errors import GatedRepoError, LocalEntryNotFoundError
+from huggingface_hub.errors import LocalEntryNotFoundError
 from huggingface_hub.utils import HfHubHTTPError
 
 from hotkey_transcriber.keyboard_controller import KeyboardController
@@ -62,59 +59,11 @@ def _repair_and_download(size, model_path, cache_dir=None):
     except Exception:
         pass
 
-    return _download_model_online(
+    return download_model(
         size_or_id=size,
+        local_files_only=False,
         cache_dir=cache_dir,
     )
-
-
-def _download_model_online(size_or_id, cache_dir=None):
-    try:
-        return download_model(
-            size_or_id=size_or_id,
-            local_files_only=False,
-            cache_dir=cache_dir,
-        )
-    except GatedRepoError:
-        if not _prompt_and_set_hf_token(size_or_id):
-            raise
-        return download_model(
-            size_or_id=size_or_id,
-            local_files_only=False,
-            cache_dir=cache_dir,
-        )
-
-
-def _prompt_and_set_hf_token(repo_id: str) -> bool:
-    existing = (
-        os.getenv("HF_TOKEN")
-        or os.getenv("HUGGINGFACE_HUB_TOKEN")
-        or os.getenv("HF_HUB_TOKEN")
-    )
-    if existing:
-        return True
-
-    if not sys.stdin or not sys.stdin.isatty():
-        print(
-            f"Modell '{repo_id}' ist gated. Setze HF_TOKEN/HUGGINGFACE_HUB_TOKEN "
-            "vor dem Start, da kein interaktiver Prompt verfuegbar ist."
-        )
-        return False
-
-    print(f"Modell '{repo_id}' ist gated (Hugging Face).")
-    token = getpass("Bitte HF_TOKEN eingeben (leer = abbrechen): ").strip()
-    if not token:
-        return False
-
-    os.environ["HF_TOKEN"] = token
-    os.environ["HUGGINGFACE_HUB_TOKEN"] = token
-    os.environ["HF_HUB_TOKEN"] = token
-    try:
-        hf_login(token=token, add_to_git_credential=False)
-    except Exception:
-        # Env vars are often sufficient for the current process.
-        pass
-    return True
 
 
 def load_model(size, device, compute_type, cache_dir=None, backend="native",
@@ -138,8 +87,9 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native",
         )
     except (ValueError, HfHubHTTPError, LocalEntryNotFoundError):
         print(f"⏬ Download Whisper-Modell '{size}'…")
-        model_path = _download_model_online(
+        model_path = download_model(
             size_or_id=size,
+            local_files_only=False,
             cache_dir=cache_dir,
         )
         print(f"✅ Modell '{size}' heruntergeladen.")

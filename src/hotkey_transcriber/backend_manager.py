@@ -106,6 +106,7 @@ def resolve_backend(config):
         }
 
     device = detect_device()
+    compute_type = "float16" if device == "cuda" else "float32"
 
     # CTranslate2's HIP kernels crash on RDNA 4 (gfx1150) and possibly other
     # newer AMD GPUs on Windows.  Use the torch-based openai-whisper backend
@@ -115,15 +116,6 @@ def resolve_backend(config):
         and is_windows_amd_gpu()
         and device == "cuda"
     )
-
-    forced_compute_type = os.getenv("HOTKEY_TRANSCRIBER_COMPUTE_TYPE", "").strip().lower()
-    if forced_compute_type in ("float16", "float32", "int8_float16", "int8_float32"):
-        compute_type = forced_compute_type
-    elif selected == "native" and is_windows_amd_gpu() and device == "cuda" and not use_torch:
-        # CTranslate2 on ROCm Windows needs float32 for stability.
-        compute_type = "float32"
-    else:
-        compute_type = "float16" if device == "cuda" else "float32"
 
     return {
         "backend": "native",
