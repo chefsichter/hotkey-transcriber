@@ -141,11 +141,28 @@ Detaillierte Schritt-fuer-Schritt-Anleitungen:
 - [Windows ROCm + CTranslate2 Anleitung (Deutsch)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
 - [Windows ROCm + CTranslate2 manual (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
 
+Danach die App mit nativen Backend starten:
+
+```powershell
+$env:HOTKEY_TRANSCRIBER_BACKEND="native"
+$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel).Path)"
+& ".\.venv\Scripts\hotkey-transcriber.exe"
+```
+
+Wichtig:
+- Starte die Exe aus genau derselben ROCm-venv, in der gebaut wurde.
+- `hotkey-transcriber` ohne Pfad kann sonst die globale/pipx-Installation starten.
+- Schnelltest:
+  ```powershell
+  Get-Command hotkey-transcriber
+  ```
+
 ## 🪟 Programm starten
 - Nach Aktivierung der virtuellen Umgebung genügt der Befehl:
   ```cmd
   hotkey-transcriber
   ```
+- Fuer den nativen Windows-ROCm-Fall nutze die Exe direkt aus `.\.venv\Scripts\`.
 - Das Programm startet als Tray-Anwendung.
 
 ## 🎉 Nutzung

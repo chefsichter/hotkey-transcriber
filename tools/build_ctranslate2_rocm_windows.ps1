@@ -11,7 +11,8 @@ param(
     [string]$RocmMetaTar = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm-7.2.0.dev0.tar.gz",
     [string]$TorchWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torch-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl",
     [string]$TorchAudioWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchaudio-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl",
-    [string]$TorchVisionWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvision-0.24.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
+    [string]$TorchVisionWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvision-0.24.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl",
+    [bool]$InstallProjectIntoRocmVenv = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +52,7 @@ if ([string]::IsNullOrWhiteSpace($RocmMergedRoot)) {
 $python = Join-Path $RocmVenv "Scripts\python.exe"
 $cmakeExe = Join-Path $RocmVenv "Scripts\cmake.exe"
 $rocmMergedRootPosix = $RocmMergedRoot.Replace("\", "/")
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 if (-not (Test-Path $python)) {
     if (-not $InstallAmdRocmFromGuide) {
@@ -212,7 +214,22 @@ if torch.cuda.is_available():
 "@
 }
 
+if ($InstallProjectIntoRocmVenv) {
+    Write-Host "==> Install hotkey-transcriber into ROCm venv"
+    Push-Location $repoRoot
+    try {
+        Invoke-External "Install project (editable) into ROCm venv" { & $python -m pip install -e . }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 Write-Host "Done."
-Write-Host "For native Windows ROCm run hotkey-transcriber with:"
+Write-Host "For native Windows ROCm run the app from this ROCm venv (not a global/pipx install):"
 Write-Host "  `$env:HOTKEY_TRANSCRIBER_BACKEND='native'"
 Write-Host "  `$env:HOTKEY_TRANSCRIBER_ROCM_ROOT='$RocmMergedRoot'"
+Write-Host "  & '$RocmVenv\Scripts\hotkey-transcriber.exe'"
+Write-Host "If that exe does not exist:"
+Write-Host "  & '$python' -m pip install -e '$repoRoot'"
+Write-Host "  & '$RocmVenv\Scripts\hotkey-transcriber.exe'"

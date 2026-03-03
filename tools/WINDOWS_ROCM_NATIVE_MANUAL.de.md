@@ -50,14 +50,14 @@ Das Script erledigt:
 
 ```powershell
 $env:HOTKEY_TRANSCRIBER_BACKEND="native"
-$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="C:\rdev\_rocm_sdk_devel"
-hotkey-transcriber
+$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel).Path)"
+& ".\.venv\Scripts\hotkey-transcriber.exe"
 ```
 
 Optional fuer freie DLL-Verzeichnisse:
 
 ```powershell
-$env:HOTKEY_TRANSCRIBER_DLL_DIRS="C:\rdev\_rocm_sdk_devel\bin;$((Resolve-Path .\.venv).Path)\bin"
+$env:HOTKEY_TRANSCRIBER_DLL_DIRS="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel\bin).Path);$((Resolve-Path .\.venv).Path)\bin"
 ```
 
 ## 4) Manuelle Verifikation

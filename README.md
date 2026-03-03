@@ -143,9 +143,17 @@ Then start the app with native backend:
 
 ```powershell
 $env:HOTKEY_TRANSCRIBER_BACKEND="native"
-$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="C:\rdev\_rocm_sdk_devel"
-hotkey-transcriber
+$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel).Path)"
+& ".\.venv\Scripts\hotkey-transcriber.exe"
 ```
+
+Important:
+- Run the executable from the same ROCm venv that was used by the build script.
+- `hotkey-transcriber` without path may start a global/pipx install instead.
+- Quick check:
+  ```powershell
+  Get-Command hotkey-transcriber
+  ```
 
 ## 🪟 Start program
 - After activating the virtual environment, the command is sufficient:
