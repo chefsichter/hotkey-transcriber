@@ -1,12 +1,30 @@
 param(
     [ValidateSet("ask", "on", "off")]
-    [string]$Autostart = "ask"
+    [string]$Autostart = "ask",
+    [switch]$AmdGpu
 )
 
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
+
+# ── ROCm wheel URLs (Python 3.12 / ROCm 7.2) ────────────────────────
+$RocmCoreWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_core-7.2.0.dev0-py3-none-win_amd64.whl"
+$RocmDevelWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_devel-7.2.0.dev0-py3-none-win_amd64.whl"
+$RocmLibsWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_libraries_custom-7.2.0.dev0-py3-none-win_amd64.whl"
+$RocmMetaTar = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm-7.2.0.dev0.tar.gz"
+$TorchWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torch-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
+$TorchAudioWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchaudio-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
+$TorchVisionWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvision-0.24.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
+
+# ── helpers ───────────────────────────────────────────────────────────
+
+function Invoke-External {
+    param([string]$Name, [scriptblock]$Script)
+    & $Script
+    if ($LASTEXITCODE -ne 0) { throw "$Name failed with exit code $LASTEXITCODE" }
+}
 
 function Get-PythonCommand {
     if (Get-Command py -ErrorAction SilentlyContinue) {
@@ -19,6 +37,12 @@ function Get-PythonCommand {
 }
 
 function Get-HotkeyTranscriberExecutable {
+    param([string]$VenvDir = "")
+
+    if ($VenvDir -and (Test-Path (Join-Path $VenvDir "Scripts\hotkey-transcriber.exe"))) {
+        return (Join-Path $VenvDir "Scripts\hotkey-transcriber.exe")
+    }
+
     $cmd = Get-Command hotkey-transcriber -ErrorAction SilentlyContinue
     if ($cmd -and (Test-Path $cmd.Source)) {
         return $cmd.Source
@@ -71,7 +95,7 @@ function Ensure-ShortcutIcon {
         return $iconPath
     }
 
-    return Get-HotkeyTranscriberExecutable
+    return (Get-HotkeyTranscriberExecutable)
 }
 
 function Get-LauncherScriptPath {
@@ -81,9 +105,9 @@ function Get-LauncherScriptPath {
 }
 
 function New-HiddenLauncherScript {
-    $exePath = Get-HotkeyTranscriberExecutable
+    param([string]$ExePath)
     $launcherPath = Get-LauncherScriptPath
-    $escaped = $exePath.Replace('"', '""')
+    $escaped = $ExePath.Replace('"', '""')
     $content = @"
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.Run """$escaped""", 0, False
@@ -93,7 +117,8 @@ WshShell.Run """$escaped""", 0, False
 }
 
 function New-StartMenuShortcut {
-    $launcherPath = New-HiddenLauncherScript
+    param([string]$ExePath)
+    $launcherPath = New-HiddenLauncherScript -ExePath $ExePath
     $iconPath = Ensure-ShortcutIcon
     $programsDir = [Environment]::GetFolderPath("Programs")
     $shortcutPath = Join-Path $programsDir "Hotkey Transcriber.lnk"
@@ -110,17 +135,78 @@ function New-StartMenuShortcut {
     Write-Host "Startmenü-Verknüpfung erstellt: $shortcutPath (ohne Terminalfenster)"
 }
 
-if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
-    $python = Get-PythonCommand
-    Write-Host "pipx not found - installing with $python..."
-    & $python -m pip install --user pipx
-    & $python -m pipx ensurepath
-    Write-Host "pipx installed. Restart PowerShell if command resolution still fails."
+# ── AMD GPU install (venv + ROCm torch + openai-whisper) ─────────────
+
+function Install-AmdGpuSupport {
+    $venvDir = Join-Path $repoRoot ".venv"
+    $python = Join-Path $venvDir "Scripts\python.exe"
+
+    if (-not (Test-Path $python)) {
+        Write-Host "==> Erstelle Python 3.12 venv in $venvDir"
+        Invoke-External "Create Python 3.12 venv" { & py -3.12 -m venv $venvDir }
+    }
+
+    $pyVer = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    if ($pyVer -ne "3.12") {
+        throw "AMD ROCm wheels erfordern Python 3.12 (gefunden: $pyVer). Bitte Python 3.12 installieren."
+    }
+
+    Write-Host "==> Upgrade pip"
+    Invoke-External "Upgrade pip" { & $python -m pip install --upgrade pip setuptools wheel }
+
+    Write-Host "==> Installiere ROCm SDK Pakete"
+    $env:PIP_PROGRESS_BAR = "off"
+    Invoke-External "Install ROCm SDK wheels" {
+        & $python -m pip install --no-cache-dir `
+            $RocmCoreWheel `
+            $RocmDevelWheel `
+            $RocmLibsWheel `
+            $RocmMetaTar
+    }
+
+    Write-Host "==> Installiere ROCm PyTorch"
+    Invoke-External "Install ROCm PyTorch wheels" {
+        & $python -m pip install --no-cache-dir `
+            $TorchWheel `
+            $TorchAudioWheel `
+            $TorchVisionWheel
+    }
+
+    Write-Host "==> Installiere openai-whisper"
+    Invoke-External "Install openai-whisper" { & $python -m pip install openai-whisper }
+
+    Write-Host "==> Installiere hotkey-transcriber"
+    Invoke-External "Install project" { & $python -m pip install -e $repoRoot }
+
+    Write-Host "==> Verifiziere GPU-Zugriff"
+    Invoke-External "Verify torch GPU" {
+        & $python -c "import torch; assert torch.cuda.is_available(), 'GPU nicht erkannt'; print(f'GPU: {torch.cuda.get_device_name(0)}')"
+    }
+
+    return $venvDir
 }
 
-Write-Host "Installing hotkey-transcriber with pipx..."
-pipx install --force $repoRoot
-New-StartMenuShortcut
+# ── main ──────────────────────────────────────────────────────────────
+
+if ($AmdGpu) {
+    Write-Host "Installiere hotkey-transcriber mit AMD GPU Support (ROCm + torch)..."
+    $venvDir = Install-AmdGpuSupport
+    $exePath = Get-HotkeyTranscriberExecutable -VenvDir $venvDir
+    New-StartMenuShortcut -ExePath $exePath
+} else {
+    if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+        $python = Get-PythonCommand
+        Write-Host "pipx not found - installing with $python..."
+        & $python -m pip install --user pipx
+        & $python -m pipx ensurepath
+        Write-Host "pipx installed. Restart PowerShell if command resolution still fails."
+    }
+
+    Write-Host "Installing hotkey-transcriber with pipx..."
+    pipx install --force $repoRoot
+    $exePath = Get-HotkeyTranscriberExecutable
+    New-StartMenuShortcut -ExePath $exePath
+}
 
 if ($Autostart -eq "ask") {
     $answer = Read-Host "Autostart aktivieren? (j/n)"
