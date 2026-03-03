@@ -139,7 +139,6 @@ Hinweise:
 
 Detaillierte Schritt-fuer-Schritt-Anleitungen:
 - [Windows ROCm + CTranslate2 Anleitung (Deutsch)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
-- [Windows ROCm + CTranslate2 manual (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
 
 Danach die App mit nativen Backend starten:
 

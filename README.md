@@ -137,7 +137,6 @@ Notes:
 
 Detailed step-by-step manuals:
 - [Windows ROCm + CTranslate2 manual (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
-- [Windows ROCm + CTranslate2 manual (German)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
 
 Then start the app with native backend:
 
