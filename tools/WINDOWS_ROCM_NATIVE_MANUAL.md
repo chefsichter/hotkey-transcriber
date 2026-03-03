@@ -1,94 +1,109 @@
-# Windows ROCm + CTranslate2 (manual guide)
+# Windows AMD GPU Setup (native ROCm + torch)
 
-This guide describes the native Windows ROCm path (without WSL) for `faster-whisper` using a self-built `ctranslate2`.
+This guide describes the native Windows ROCm path for AMD GPUs using `openai-whisper` with PyTorch.
+
+CTranslate2's HIP kernels crash on newer AMD GPUs (e.g. RDNA 4 / gfx1150), so the app uses the torch-based `openai-whisper` backend instead of `faster-whisper`/CTranslate2.
 
 Tested setup:
-- Date: 2026-03-03
+- Windows 11
+- AMD Radeon 890M (gfx1150, RDNA 4)
 - ROCm Windows: 7.2
-- Python: 3.12 (cp312, important)
-- CTranslate2: 4.7.1
-
-Reference (official AMD Windows guide):
-- https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/windows/install-pytorch.html
+- Python: 3.12 (cp312, required)
+- PyTorch: 2.9.1+rocmsdk20260116
 
 ## 1) Prerequisites
 
-1. Install AMD Windows driver/ROCm according to AMD docs (Radeon/Ryzen ROCm on Windows).
-2. Use a Python 3.12 venv (not 3.13).
-3. In that venv, install ROCm Windows packages from AMD docs:
-   - `rocm`
-   - `rocm-sdk-core`
-   - `rocm-sdk-devel`
-   - ROCm PyTorch wheels (`torch`, `torchaudio`, `torchvision`, cp312)
-4. Install Visual Studio Build Tools + Windows SDK:
-   - MSVC C++ Build Tools
-   - Windows 10/11 SDK (with `rc.exe` and `mt.exe`)
+1. Install **AMD Software: Adrenalin Edition** for Windows (includes ROCm support), then reboot.
+2. Install **Python 3.12** (not 3.13 — AMD ROCm wheels are `cp312` only).
 
-Quick test:
+## 2) Automated install (recommended)
+
+In this repository:
+
+```powershell
+.\tools\install_windows.ps1 -AmdGpu -Autostart ask
+```
+
+The script does:
+- Create a Python 3.12 venv (`.venv`) in the repo
+- Install ROCm SDK packages (`rocm_sdk_core`, `rocm_sdk_devel`, `rocm_sdk_libraries_custom`, `rocm` meta)
+- Install ROCm PyTorch wheels (`torch`, `torchaudio`, `torchvision`, all cp312)
+- Install `openai-whisper`
+- Install the project (`pip install -e .`)
+- Verify GPU access (`torch.cuda.is_available()`)
+- Create a Start Menu shortcut
+
+## 3) Start the app
+
+Via Start Menu shortcut, or directly:
+
+```powershell
+& ".\.venv\Scripts\hotkey-transcriber.exe"
+```
+
+The app auto-detects the AMD GPU and uses the torch backend with `float16`.
+
+## 4) Manual verification
+
+Check that PyTorch sees the GPU:
 
 ```powershell
 .\.venv\Scripts\python.exe -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
 ```
 
-## 2) Automated rebuild (recommended)
-
-In this repository:
-
-```powershell
-.\tools\build_ctranslate2_rocm_windows.ps1
+Expected output (example):
+```
+2.9.1+rocmsdk20260116
+True
+AMD Radeon 890M Graphics
 ```
 
-The script does:
-- Detect venv in current directory (`.\.venv`, then `.\venv`) or create `.\.venv`
-- Optional automatic install of AMD ROCm Windows packages (guide URLs, Python 3.12)
-- Extract the `rocm_sdk_devel` payload
-- Merge `core` + `libraries` + `devel` into `.\build\rocm-win-ct2\_rocm_sdk_devel` (or custom path)
-- Download CTranslate2 sources (v4.7.1)
-- Download required third-party sources (`spdlog`, `cpu_features`)
-- HIP build + install to `<ROCM_VENV>\bin` and `<ROCM_VENV>\lib`
-- Build wheel and `pip install --force-reinstall`
-- Smoke test
-
-## 3) Start app with native ROCm
+Check that openai-whisper loads:
 
 ```powershell
-$env:HOTKEY_TRANSCRIBER_BACKEND="native"
-$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel).Path)"
-& ".\.venv\Scripts\hotkey-transcriber.exe"
+.\.venv\Scripts\python.exe -c "import whisper; m = whisper.load_model('tiny'); print('ok')"
 ```
 
-Optional explicit DLL directories:
+## 5) How it works
 
-```powershell
-$env:HOTKEY_TRANSCRIBER_DLL_DIRS="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel\bin).Path);$((Resolve-Path .\.venv).Path)\bin"
-```
+When the app starts:
+1. `backend_manager.py` detects an AMD GPU on Windows via `Win32_VideoController`
+2. `device_detector.py` confirms a CUDA/HIP device is available via CTranslate2
+3. The combination of AMD GPU + CUDA device + Windows triggers `use_torch_whisper=True`
+4. `object_loader.py` loads `TorchWhisperModel` from `torch_whisper_backend.py` instead of `faster_whisper.WhisperModel`
+5. The torch backend uses `openai-whisper` with `fp16=True` for optimal GPU performance
 
-## 4) Manual verification
+The environment variable `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` is set automatically to enable flash/memory-efficient attention on ROCm.
 
-```powershell
-.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(str(pathlib.Path(r'.\build\rocm-win-ct2\_rocm_sdk_devel\bin').resolve())); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); import ctranslate2; print(ctranslate2.__version__); print(ctranslate2.get_supported_compute_types('cuda'))"
-```
+## 6) Available models
 
-`faster-whisper` GPU test:
+The torch backend supports standard OpenAI Whisper models:
+- `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
 
-```powershell
-.\.venv\Scripts\python.exe -c "import os, pathlib; os.add_dll_directory(str(pathlib.Path(r'.\build\rocm-win-ct2\_rocm_sdk_devel\bin').resolve())); os.add_dll_directory(str(pathlib.Path(r'.\.venv\bin').resolve())); from faster_whisper import WhisperModel; m=WhisperModel('tiny.en', device='cuda', compute_type='float16'); print('ok')"
-```
+Not available with the torch backend:
+- Distil models (`distil-small.en`, `distil-medium.en`, `distil-large-v3`) — CTranslate2 format only
+- Custom HuggingFace models (e.g. `TheChola/...`) — CTranslate2 format only
 
-## 5) Common issues
+## 7) Common issues
 
-1. `ImportError: DLL load failed while importing _ext`
-   - DLL paths are missing.
-   - Set `HOTKEY_TRANSCRIBER_ROCM_ROOT` and verify both `<venv>\bin` and ROCm `bin` are in DLL search path.
+1. **`torch.cuda.is_available()` returns `False`**
+   - AMD driver not installed or outdated. Install AMD Software: Adrenalin Edition and reboot.
+   - Wrong Python version. AMD ROCm wheels require Python 3.12.
 
-2. `cannot find ROCm device library`
-   - Build ran without correct `--rocm-path` / `--rocm-device-lib-path`.
-   - Run the script again.
+2. **`No module named 'whisper'`**
+   - `openai-whisper` not installed. Run: `.\.venv\Scripts\python.exe -m pip install openai-whisper`
 
-3. `hip/hip_runtime.h file not found`
-   - ROCm include headers are missing in merged root.
-   - Run the script again (it copies `core\include` into the configured `ROCmMergedRoot\include`).
+3. **Slow transcription (several seconds)**
+   - Check that `float16` is being used (look for log message: "torch-Backend").
+   - If running from a pipx install instead of the venv, the torch backend won't be available.
 
-4. Python 3.13 in venv
-   - AMD wheels in this flow are `cp312`.
-   - Create/use a Python 3.12 venv.
+4. **Model not available error**
+   - Distil models and custom HuggingFace models don't work with the torch backend.
+   - Switch to a standard model (e.g. `large-v3-turbo`).
+
+5. **`UserWarning: Flash Efficient attention ... is still experimental`**
+   - This is handled automatically via `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1`.
+
+## 8) WSL alternative
+
+If you prefer using `faster-whisper`/CTranslate2 (e.g. on hardware where CTranslate2's HIP kernels work), see the WSL setup in the main [README](../README.md).

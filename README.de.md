@@ -20,7 +20,7 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) in Echtzeit trans
 - [📜 Lizenz](#lizenz)
 
 ## ✨ Features
-- 🔊 Live-Diktat lokal mit OpenAI Whisper (via `faster-whisper`)
+- 🔊 Live-Diktat lokal mit OpenAI Whisper (`faster-whisper` fuer NVIDIA/CPU, `openai-whisper` torch-Backend fuer AMD-GPUs unter Windows)
 - ⌨️ Aufnahme per Hotkey (Alt+R)
 - 🖥️ Traysymbol (Windows & Linux)
 - 📋 Automatisches Einfügen des erkannten Transkripts
@@ -28,17 +28,20 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) in Echtzeit trans
 
 ## 🛠️ Voraussetzungen
 
-Hotkey Transcriber nutzt im Hintergrund `faster-whisper`, eine optimierte Whisper-Implementierung für Echtzeit-Spracherkennung.
+Hotkey Transcriber nutzt OpenAI Whisper fuer Echtzeit-Spracherkennung. Je nach Hardware wird eines von zwei Backends verwendet:
 
-Für eine flüssige, nahezu verzögerungsfreie Transkription wird eine GPU empfohlen:
-  - NVIDIA GPUs mit CUDA-Treibern (>=11.7).
-  - AMD-GPUs per ROCm sind in diesem Stack (`faster-whisper`/CTranslate2) derzeit vor allem ein Linux-Pfad, kein natives Windows-Setup.
+- **NVIDIA / CPU**: `faster-whisper` (CTranslate2) — schnell, unterstuetzt int8-Quantisierung
+- **AMD-GPU unter Windows**: `openai-whisper` (torch) — CTranslate2s HIP-Kernel sind mit neueren AMD-GPUs (z.B. RDNA 4 / gfx1150) nicht kompatibel, daher wechselt die App automatisch auf das torch-Backend
 
-Ohne GPU (CPU-only) ist Transkription ebenfalls möglich, jedoch deutlich langsamer und mit einer Latenz von mehreren Sekunden pro Aufnahmeintervall.
+Fuer eine fluessige, nahezu verzoegerungsfreie Transkription wird eine GPU empfohlen:
+  - **NVIDIA**-GPUs mit CUDA-Treibern (>=11.7).
+  - **AMD**-GPUs unter Windows via ROCm 7.2 + PyTorch (nativ, kein WSL noetig). Alternativ wird auch ein WSL-ROCm-Backend unterstuetzt.
 
-Beim ersten Start wird das gewählte Whisper-Modell einmalig von Hugging Face heruntergeladen und danach aus dem lokalen Cache genutzt. Für diesen initialen Download ist eine Internetverbindung erforderlich.
+Ohne GPU (CPU-only) ist Transkription ebenfalls moeglich, jedoch deutlich langsamer und mit einer Latenz von mehreren Sekunden pro Aufnahmeintervall.
 
-Auf Windows 11 wird bei erkannter AMD-GPU automatisch ein WSL-Backend vorbereitet und verwendet. Das Verhalten lässt sich über `HOTKEY_TRANSCRIBER_BACKEND` steuern (`auto`, `native`, `wsl_amd`).
+Beim ersten Start wird das gewaehlte Whisper-Modell einmalig heruntergeladen und danach aus dem lokalen Cache genutzt. Fuer diesen initialen Download ist eine Internetverbindung erforderlich.
+
+Backend-Erkennung: Die App erkennt die GPU und waehlt automatisch das beste Backend. Ueberschreibbar mit `HOTKEY_TRANSCRIBER_BACKEND` (`auto`, `native`, `wsl_amd`).
 
 ### Einfacher Installer (Linux & Windows)
 
@@ -52,6 +55,11 @@ Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
   ```powershell
   .\tools\install_windows.ps1 -Autostart ask
   ```
+- Windows mit AMD-GPU (PowerShell):
+  ```powershell
+  .\tools\install_windows.ps1 -AmdGpu -Autostart ask
+  ```
+  Der `-AmdGpu`-Schalter erstellt eine Python-3.12-venv mit ROCm SDK, PyTorch ROCm und `openai-whisper` statt pipx.
 
 Autostart-Werte: `ask`, `on`, `off`.
 Unter Windows legt der Installer zusaetzlich einen Startmenue-Eintrag (`Hotkey Transcriber`) an.
@@ -97,80 +105,62 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
 
-### Windows 11 + AMD (ROCm über WSL)
+### Windows 11 + AMD-GPU (natives ROCm)
 
-1. AMD Software: Adrenalin Edition für Windows installieren (inkl. WSL-Support), danach neu starten.
-2. PowerShell als Administrator im Repo öffnen und ausführen:
-   ```powershell
-   .\tools\setup_wsl_amd.ps1
-   ```
-3. Installation/Start (empfohlen):
-   ```powershell
-   .\tools\install_windows.ps1 -Autostart ask
-   ```
-   Der Installer setzt `HOTKEY_TRANSCRIBER_BACKEND=auto` und richtet den tray-only Start ein.
+Der empfohlene Weg fuer AMD-GPUs unter Windows. Die App nutzt `openai-whisper` mit PyTorch ROCm statt CTranslate2 (dessen HIP-Kernel auf neueren AMD-GPUs wie RDNA 4 abstuerzen).
 
-   Alternativ manuell:
+1. AMD Software: Adrenalin Edition fuer Windows installieren (inkl. ROCm-Support), danach neu starten.
+2. Installer mit `-AmdGpu` ausfuehren:
    ```powershell
-   $env:HOTKEY_TRANSCRIBER_BACKEND="auto"
-   hotkey-transcriber
+   .\tools\install_windows.ps1 -AmdGpu -Autostart ask
    ```
 
-### Windows 11 + AMD natives ROCm (experimentell)
+Der Installer:
+- Erstellt eine Python-3.12-venv (`.venv`) im Repo
+- Installiert ROCm-SDK-Wheels + PyTorch-ROCm-Wheels (ROCm 7.2, cp312)
+- Installiert `openai-whisper` und das Projekt
+- Verifiziert GPU-Zugriff via `torch.cuda.is_available()`
+- Erstellt eine Startmenue-Verknuepfung
 
-Du kannst `ctranslate2` mit HIP fuer native Windows-Nutzung neu bauen. Das Skript kann dabei die ROCm-Windows-Python-Pakete gemaess offizieller AMD-Anleitung automatisch installieren:
+Nach der Installation ueber die Startmenue-Verknuepfung oder direkt starten:
 
 ```powershell
-.\tools\build_ctranslate2_rocm_windows.ps1 `
-  -RocmVenv ".\.venv" `
-  -RocmMergedRoot ".\build\rocm-win-ct2\_rocm_sdk_devel" `
-  -HipArch "gfx1150"
+& ".\.venv\Scripts\hotkey-transcriber.exe"
 ```
 
 Hinweise:
 - Python `3.12` ist fuer die AMD-ROCm-Wheels (`cp312`) erforderlich.
-- `-InstallAmdRocmFromGuide` ist standardmaessig `true`.
-- Wenn `-RocmVenv` fehlt, prueft das Skript im aktuellen Verzeichnis zuerst `.\.venv`, dann `.\venv`; falls beides fehlt, wird `.\.venv` erstellt.
-- Verwendete offizielle AMD-Windows-Anleitung: https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/windows/install-pytorch.html
-- Wenn deine ROCm-venv bereits komplett vorbereitet ist, kannst du die Paket-Installation ueberspringen:
-  ```powershell
-  .\tools\build_ctranslate2_rocm_windows.ps1 -InstallAmdRocmFromGuide:$false
-  ```
+- Die App erkennt die AMD-GPU automatisch und nutzt das torch-Backend mit `float16` fuer optimale Performance.
+- Distil-Modelle (`distil-small.en`, `distil-medium.en`, `distil-large-v3`) und eigene HuggingFace-Modelle sind mit dem torch-Backend nicht verfuegbar.
+- Detaillierte Anleitung: [Windows AMD-GPU Setup (Deutsch)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
 
-Detaillierte Schritt-fuer-Schritt-Anleitungen:
-- [Windows ROCm + CTranslate2 Anleitung (Deutsch)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
+### Windows 11 + AMD (ROCm ueber WSL, Alternative)
 
-Danach die App mit nativen Backend starten:
+Falls du `faster-whisper`/CTranslate2 ueber WSL bevorzugst (z.B. auf Hardware wo CTranslate2s HIP-Kernel funktionieren):
 
-```powershell
-$env:HOTKEY_TRANSCRIBER_BACKEND="native"
-$env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sdk_devel).Path)"
-& ".\.venv\Scripts\hotkey-transcriber.exe"
-```
+1. AMD Software: Adrenalin Edition fuer Windows installieren (inkl. WSL-Support), danach neu starten.
+2. PowerShell als Administrator im Repo oeffnen und ausfuehren:
+   ```powershell
+   .\tools\setup_wsl_amd.ps1
+   ```
+3. Installation/Start:
+   ```powershell
+   .\tools\install_windows.ps1 -Autostart ask
+   ```
+   Die App erkennt WSL-ROCm-Bereitschaft automatisch und nutzt es wenn verfuegbar.
 
-Wichtig:
-- Starte die Exe aus genau derselben ROCm-venv, in der gebaut wurde.
-- `hotkey-transcriber` ohne Pfad kann sonst die globale/pipx-Installation starten.
-- Auf Windows 11 + AMD nativem ROCm wird aus Stabilitaetsgruenden standardmaessig `float32` verwendet.
-- Optionales Override:
-  ```powershell
-  $env:HOTKEY_TRANSCRIBER_COMPUTE_TYPE="float16"   # oder float32, int8_float16, int8_float32
-  ```
-- Fuer gated Hugging-Face-Modelle setze vor dem Start `HF_TOKEN` (oder gib ihn beim ersten Download im interaktiven Prompt ein):
-  ```powershell
-  $env:HF_TOKEN="hf_xxx"
-  ```
-- Schnelltest:
-  ```powershell
-  Get-Command hotkey-transcriber
-  ```
+   Manuelles Override:
+   ```powershell
+   $env:HOTKEY_TRANSCRIBER_BACKEND="wsl_amd"
+   hotkey-transcriber
+   ```
 
 ## 🪟 Programm starten
-- Nach Aktivierung der virtuellen Umgebung genügt der Befehl:
+- Nach der Installation genuegt:
   ```cmd
   hotkey-transcriber
   ```
-- Fuer den nativen Windows-ROCm-Fall nutze die Exe direkt aus `.\.venv\Scripts\`.
+- Fuer die AMD-GPU-venv-Installation die Exe direkt nutzen: `.\.venv\Scripts\hotkey-transcriber.exe`
 - Das Programm startet als Tray-Anwendung.
 
 ## 🎉 Nutzung
@@ -178,7 +168,8 @@ Wichtig:
 2. Lasse `R` los, um die Aufnahme zu stoppen. Der erkannte Text wird eingefügt und kopiert.
 3. Über das Tray-Menü kannst du das Transkriptions-Intervall, die Erkennungssprache ändern oder das Programm beenden.
 4. Modellwahl (Tray-Icon → „Modell wählen“):
-    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
+    - Modelle: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+    - Zusaetzliche CTranslate2-only Modelle (NVIDIA/CPU): `distil-small.en`, `distil-medium.en`, `distil-large-v3`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
     - Kleinere Modelle: reduzierter VRAM- & CPU-Bedarf → schnellere Transkription (leicht geringere Genauigkeit)
     - VRAM-Empfehlung: `tiny`/`base`: 2–4 GB; `small`/`medium`/`large*`: ≥6 GB
 
