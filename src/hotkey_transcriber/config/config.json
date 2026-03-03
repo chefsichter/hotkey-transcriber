@@ -1,5 +1,5 @@
 {
-  "model_size": "large-v3-turbo",
+  "model_size": "TheChola/whisper-large-v3-turbo-german-faster-whisper",
   "hotkey": {
     "modifier": "alt",
     "key": "r"

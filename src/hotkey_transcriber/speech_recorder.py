@@ -1,7 +1,79 @@
+import ctypes.util
+import ctypes
+import platform
 import threading
 import queue
+from pathlib import Path
+
 import numpy as np
-import sounddevice as sd
+
+
+def _linux_lib_dir() -> Path | None:
+    if platform.system().lower() != "linux":
+        return None
+    if platform.machine().lower() not in {"x86_64", "amd64"}:
+        return None
+
+    lib_dir = (
+        Path(__file__).resolve().parent
+        / "resources"
+        / "lib"
+        / "linux"
+        / "x86_64"
+    )
+    return lib_dir if lib_dir.is_dir() else None
+
+
+def _portaudio_fallback_path() -> str | None:
+    lib_dir = _linux_lib_dir()
+    if not lib_dir:
+        return None
+    candidate = lib_dir / "libportaudio.so.2.0.0"
+    return str(candidate) if candidate.is_file() else None
+
+
+def _preload_linux_audio_deps() -> None:
+    lib_dir = _linux_lib_dir()
+    if not lib_dir:
+        return
+
+    jack = lib_dir / "libjack.so.0.1.0"
+    if jack.is_file():
+        try:
+            ctypes.CDLL(str(jack), mode=ctypes.RTLD_GLOBAL)
+        except OSError:
+            pass
+
+
+def _import_sounddevice():
+    try:
+        import sounddevice as sd_mod
+        return sd_mod
+    except OSError as exc:
+        if "PortAudio library not found" not in str(exc):
+            raise
+
+        fallback = _portaudio_fallback_path()
+        if not fallback:
+            raise
+        _preload_linux_audio_deps()
+
+        original_find_library = ctypes.util.find_library
+
+        def _patched_find_library(name: str):
+            if name == "portaudio":
+                return fallback
+            return original_find_library(name)
+
+        ctypes.util.find_library = _patched_find_library
+        try:
+            import sounddevice as sd_mod
+            return sd_mod
+        finally:
+            ctypes.util.find_library = original_find_library
+
+
+sd = _import_sounddevice()
 
 from hotkey_transcriber.keyboard_controller import KeyboardController
 
