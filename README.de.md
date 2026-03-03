@@ -43,7 +43,13 @@ Ohne GPU (CPU-only) ist Transkription ebenfalls moeglich, jedoch deutlich langsa
 
 Beim ersten Start wird das gewaehlte Whisper-Modell einmalig heruntergeladen und danach aus dem lokalen Cache genutzt. Fuer diesen initialen Download ist eine Internetverbindung erforderlich.
 
-Backend-Erkennung: Die App erkennt die GPU und waehlt automatisch das beste Backend. Ueberschreibbar mit `HOTKEY_TRANSCRIBER_BACKEND` (`auto`, `native`, `wsl_amd`).
+**Backend-Erkennung:** Die App erkennt die GPU und waehlt automatisch das beste Backend. Ueberschreibbar mit der Umgebungsvariable `HOTKEY_TRANSCRIBER_BACKEND`:
+
+| Wert | Bedeutung |
+|------|-----------|
+| `auto` (Standard) | Automatische Erkennung: unter **Windows** wird geprueft ob eine AMD-GPU und eine funktionierende WSL-ROCm-Umgebung vorhanden sind → nutzt `wsl_amd` falls ja; unter **Linux** wird immer `native` gewaehlt. In allen anderen Faellen Fallback auf `native`. |
+| `native` | Modell laeuft direkt im gleichen Prozess auf dem lokalen System — nutzt CTranslate2/faster-whisper (CPU, CUDA oder ROCm/HIP) bzw. das torch-Backend (AMD-GPU unter Windows). Dies ist das einzige Backend unter Linux. |
+| `wsl_amd` | **Nur Windows.** Transkription wird an eine WSL2-Linux-VM mit ROCm delegiert. Workaround fuer AMD-GPUs, bei denen CTranslate2s HIP-Kernel nicht kompatibel sind (z.B. RDNA 4). Hat unter Linux keine Wirkung. |
 
 ### Einfacher Installer (Linux & Windows)
 
@@ -53,7 +59,7 @@ Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
   ```bash
   bash ./tools/install_linux.sh --autostart=ask
   ```
-- Linux mit AMD-GPU (ROCm):
+- Linux mit AMD-GPU (ROCm) — Details und Voraussetzungen siehe [Linux + AMD-GPU (ROCm)](#linux--amd-gpu-rocm):
   ```bash
   bash ./tools/install_linux.sh --amd-gpu --autostart=ask
   ```
@@ -62,7 +68,7 @@ Du kannst direkt die lokalen Installer-Skripte nutzen (inkl. Autostart-Auswahl):
   ```powershell
   .\tools\install_windows.ps1 -Autostart ask
   ```
-- Windows mit AMD-GPU (PowerShell):
+- Windows mit AMD-GPU (PowerShell) — zwei Methoden verfuegbar, siehe [natives ROCm (empfohlen)](#windows-11--amd-gpu-natives-rocm) vs. [ROCm ueber WSL (Alternative)](#windows-11--amd-rocm-ueber-wsl-alternative).
   ```powershell
   .\tools\install_windows.ps1 -AmdGpu -Autostart ask
   ```
@@ -84,7 +90,7 @@ Deinstallation:
 
 ### 🧰 Manuelle Installation (pipx / git)
 
-#### pipx installieren
+> **Hinweis:** Die pipx-Installation unterstuetzt nur NVIDIA-GPUs und CPU. Fuer AMD-GPUs nutze stattdessen die Installer-Skripte (`install_linux.sh --amd-gpu` bzw. `install_windows.ps1 -AmdGpu`).
 
 pipx ist notwendig, um die Anwendung isoliert zu installieren:
 
@@ -112,9 +118,23 @@ pipx ist notwendig, um die Anwendung isoliert zu installieren:
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
 
+### AMD-GPU Setup
+
+Es gibt drei AMD-GPU-Wege je nach Betriebssystem. Alle drei nutzen dieselbe App — nur Backend und Installationsmethode unterscheiden sich.
+
+| | Linux (ROCm) | Windows nativ (empfohlen) | Windows WSL (Alternative) |
+|---|---|---|---|
+| **Backend** | `faster-whisper` (CTranslate2 mit HIP) | `openai-whisper` (PyTorch ROCm) | `faster-whisper` (CTranslate2 in WSL2) |
+| **Wann nutzen** | AMD-GPU unter Linux | AMD-GPU unter Windows (besonders RDNA 4+) | AMD-GPU unter Windows, wenn CTranslate2s HIP-Kernel funktionieren (z.B. RDNA 3) |
+| **Vorteile** | Native GPU-Beschleunigung, int8-Quantisierung, alle Modelle verfuegbar | Einfaches Setup, kein Build-Schritt, breite GPU-Kompatibilitaet | CTranslate2-Performance + int8-Quantisierung unter Windows |
+| **Nachteile** | CTranslate2 muss from Source gebaut werden (~15 Min.) | Keine Distil-Modelle, keine int8-Quantisierung, Python 3.12 erforderlich | WSL2-Setup noetig, hoeherer RAM-Verbrauch, komplexer |
+| **Installer** | `install_linux.sh --amd-gpu` | `install_windows.ps1 -AmdGpu` | `setup_wsl_amd.ps1` + `install_windows.ps1` |
+
+---
+
 ### Linux + AMD-GPU (ROCm)
 
-Fuer AMD-GPUs unter Linux (RDNA 3 / gfx1100 etc.) wird CTranslate2 from Source mit HIP-Support gebaut.
+Fuer AMD-GPUs unter Linux (RDNA 3 / gfx1100 etc.) wird CTranslate2 from Source mit HIP-Support gebaut. Das ergibt native GPU-Beschleunigung mit voller Modell- und Quantisierungs-Unterstuetzung.
 
 **Voraussetzungen:**
 - ROCm-Runtime installiert (`rocminfo` und `hipconfig` muessen verfuegbar sein)
@@ -142,9 +162,11 @@ Hinweise:
 - Das CTranslate2-Quellverzeichnis (`~/CTranslate2`, ~556 MB) kann nach der Installation geloescht werden um Speicher zu sparen.
 - Die App erkennt die AMD-GPU automatisch und nutzt das CTranslate2/faster-whisper-Backend mit `float16`.
 
+---
+
 ### Windows 11 + AMD-GPU (natives ROCm)
 
-Der empfohlene Weg fuer AMD-GPUs unter Windows. Die App nutzt `openai-whisper` mit PyTorch ROCm statt CTranslate2 (dessen HIP-Kernel auf neueren AMD-GPUs wie RDNA 4 abstuerzen).
+**Empfohlen** fuer AMD-GPUs unter Windows. Nutzt `openai-whisper` mit PyTorch ROCm — kein CTranslate2-Build noetig. Beste Option fuer neuere AMD-GPUs (RDNA 4 / gfx1150 und neuer), bei denen CTranslate2s HIP-Kernel nicht kompatibel sind.
 
 1. AMD Software: Adrenalin Edition fuer Windows installieren (inkl. ROCm-Support), danach neu starten.
 2. Installer mit `-AmdGpu` ausfuehren:
@@ -162,7 +184,7 @@ Der Installer:
 Nach der Installation ueber die Startmenue-Verknuepfung oder direkt starten:
 
 ```powershell
-& ".\.venv\Scripts\hotkey-transcriber.exe"
+.\.venv\Scripts\hotkey-transcriber.exe
 ```
 
 Hinweise:
@@ -171,9 +193,11 @@ Hinweise:
 - Distil-Modelle (`distil-small.en`, `distil-medium.en`, `distil-large-v3`) und eigene HuggingFace-Modelle sind mit dem torch-Backend nicht verfuegbar.
 - Detaillierte Anleitung: [Windows AMD-GPU Setup (Deutsch)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
 
+---
+
 ### Windows 11 + AMD (ROCm ueber WSL, Alternative)
 
-Falls du `faster-whisper`/CTranslate2 ueber WSL bevorzugst (z.B. auf Hardware wo CTranslate2s HIP-Kernel funktionieren):
+Alternative fuer AMD-GPUs unter Windows, bei denen CTranslate2s HIP-Kernel funktionieren (z.B. RDNA 3 / gfx1100). Fuehrt `faster-whisper`/CTranslate2 in einer WSL2-Linux-VM aus — mit Zugang zu int8-Quantisierung und Distil-Modellen, auf Kosten von hoeherem RAM-Verbrauch und komplexerem Setup. Beide Windows-Methoden nutzen denselben Installer (`install_windows.ps1`); der Unterschied ist der zusaetzliche WSL-Setup-Schritt.
 
 1. AMD Software: Adrenalin Edition fuer Windows installieren (inkl. WSL-Support), danach neu starten.
 2. PowerShell als Administrator im Repo oeffnen und ausfuehren:

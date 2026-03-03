@@ -43,7 +43,13 @@ Without a GPU (CPU-only), transcription is also possible, but significantly slow
 
 On first start, the selected Whisper model is downloaded once and then reused from the local cache. An internet connection is required for this initial download.
 
-Backend auto-detection: The app detects the GPU and selects the best backend automatically. You can override with `HOTKEY_TRANSCRIBER_BACKEND` (`auto`, `native`, `wsl_amd`).
+**Backend auto-detection:** The app detects the GPU and selects the best backend automatically. You can override with the environment variable `HOTKEY_TRANSCRIBER_BACKEND`:
+
+| Value | Meaning |
+|-------|---------|
+| `auto` (default) | Auto-detect: on **Windows** checks for an AMD GPU + working WSL-ROCm environment → uses `wsl_amd` if found; on **Linux** always selects `native`. Falls back to `native` in all other cases. |
+| `native` | Run the model directly in the same process on the local system — uses CTranslate2/faster-whisper (CPU, CUDA, or ROCm/HIP) or the torch backend (AMD GPU on Windows). This is the only backend used on Linux. |
+| `wsl_amd` | **Windows only.** Delegate transcription to a WSL2 Linux VM with ROCm. Workaround for AMD GPUs where CTranslate2's HIP kernels are incompatible (e.g. RDNA 4). Has no effect on Linux. |
 
 ### Simple installer (Linux & Windows)
 
@@ -53,7 +59,7 @@ You can use the local installer scripts directly (including autostart choice):
   ```bash
   bash ./tools/install_linux.sh --autostart=ask
   ```
-- Linux with AMD GPU (ROCm):
+- Linux with AMD GPU (ROCm) — details and prerequisites see [Linux + AMD GPU (ROCm)](#linux--amd-gpu-rocm):
   ```bash
   bash ./tools/install_linux.sh --amd-gpu --autostart=ask
   ```
@@ -62,7 +68,7 @@ You can use the local installer scripts directly (including autostart choice):
   ```powershell
   .\tools\install_windows.ps1 -Autostart ask
   ```
-- Windows with AMD GPU (PowerShell):
+- Windows with AMD GPU (PowerShell) — two methods available, see [native ROCm (recommended)](#windows-11--amd-gpu-native-rocm) vs. [ROCm via WSL (alternative)](#windows-11--amd-rocm-via-wsl-alternative).
   ```powershell
   .\tools\install_windows.ps1 -AmdGpu -Autostart ask
   ```
@@ -83,6 +89,8 @@ Uninstall:
   ```
 
 ### 🧰 Manual installation (pipx / git)
+
+> **Note:** The pipx installation only supports NVIDIA GPUs and CPU. For AMD GPUs use the installer scripts instead (`install_linux.sh --amd-gpu` or `install_windows.ps1 -AmdGpu`).
 
 pipx is required to install the application in isolation:
 
@@ -110,9 +118,23 @@ pipx is required to install the application in isolation:
    pipx install git+https://github.com/chefsichter/hotkey-transcriber
    ```
 
+### AMD GPU setup
+
+There are three AMD GPU paths depending on your OS. All three use the same app — only the backend and installation method differ.
+
+| | Linux (ROCm) | Windows native (recommended) | Windows WSL (alternative) |
+|---|---|---|---|
+| **Backend** | `faster-whisper` (CTranslate2 with HIP) | `openai-whisper` (PyTorch ROCm) | `faster-whisper` (CTranslate2 in WSL2) |
+| **When to use** | AMD GPU on Linux | AMD GPU on Windows (especially RDNA 4+) | AMD GPU on Windows where CTranslate2's HIP kernels work (e.g. RDNA 3) |
+| **Pros** | Native GPU acceleration, int8 quantization, all models supported | Simple setup, no build step, broad GPU compatibility | CTranslate2 performance + int8 quantization on Windows |
+| **Cons** | Requires building CTranslate2 from source (~15 min) | No distil models, no int8 quantization, Python 3.12 required | Requires WSL2 setup, higher RAM usage, more complex |
+| **Installer** | `install_linux.sh --amd-gpu` | `install_windows.ps1 -AmdGpu` | `setup_wsl_amd.ps1` + `install_windows.ps1` |
+
+---
+
 ### Linux + AMD GPU (ROCm)
 
-For AMD GPUs on Linux (RDNA 3 / gfx1100 etc.), CTranslate2 is built from source with HIP support.
+For AMD GPUs on Linux (RDNA 3 / gfx1100 etc.), CTranslate2 is built from source with HIP support. This gives native GPU acceleration with full model and quantization support.
 
 **Prerequisites:**
 - ROCm runtime installed (`rocminfo` and `hipconfig` must be available)
@@ -140,9 +162,11 @@ Notes:
 - The CTranslate2 source directory (`~/CTranslate2`, ~556 MB) can be deleted after installation to save space.
 - The app auto-detects the AMD GPU and uses the CTranslate2/faster-whisper backend with `float16`.
 
+---
+
 ### Windows 11 + AMD GPU (native ROCm)
 
-The recommended path for AMD GPUs on Windows. The app uses `openai-whisper` with PyTorch ROCm instead of CTranslate2 (whose HIP kernels crash on newer AMD GPUs like RDNA 4).
+**Recommended** for AMD GPUs on Windows. Uses `openai-whisper` with PyTorch ROCm — no CTranslate2 build required. This is the best option for newer AMD GPUs (RDNA 4 / gfx1150 and above) where CTranslate2's HIP kernels are incompatible.
 
 1. Install AMD Software: Adrenalin Edition for Windows (includes ROCm support), then reboot.
 2. Run the installer with `-AmdGpu`:
@@ -160,7 +184,7 @@ The installer:
 After installation, start via the Start Menu shortcut or directly:
 
 ```powershell
-& ".\.venv\Scripts\hotkey-transcriber.exe"
+.\.venv\Scripts\hotkey-transcriber.exe
 ```
 
 Notes:
@@ -169,9 +193,11 @@ Notes:
 - Distil models (`distil-small.en`, `distil-medium.en`, `distil-large-v3`) and custom HuggingFace models are not available with the torch backend.
 - Detailed manual: [Windows AMD GPU setup (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
 
+---
+
 ### Windows 11 + AMD (ROCm via WSL, alternative)
 
-If you prefer using `faster-whisper`/CTranslate2 via WSL (e.g. on hardware where CTranslate2's HIP kernels work):
+Alternative for AMD GPUs on Windows where CTranslate2's HIP kernels work (e.g. RDNA 3 / gfx1100). Runs `faster-whisper`/CTranslate2 inside a WSL2 Linux VM, giving access to int8 quantization and distil models — at the cost of higher RAM usage and a more complex setup. Both methods use the same Windows installer (`install_windows.ps1`); the difference is the additional WSL setup step.
 
 1. Install AMD Software: Adrenalin Edition for Windows (includes WSL support), then reboot.
 2. Open elevated PowerShell in this repo and run:
