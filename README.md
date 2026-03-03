@@ -135,8 +135,9 @@ Notes:
   .\tools\build_ctranslate2_rocm_windows.ps1 -InstallAmdRocmFromGuide:$false
   ```
 
-Detailed step-by-step manual (German):
-- [Windows ROCm + CTranslate2 manual](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
+Detailed step-by-step manuals:
+- [Windows ROCm + CTranslate2 manual (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
+- [Windows ROCm + CTranslate2 manual (German)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.de.md)
 
 Then start the app with native backend:
 
