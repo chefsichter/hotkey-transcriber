@@ -18,7 +18,7 @@ from hotkey_transcriber.resources_manger import get_microphone_icon_path
 
 config = load_config()
 
-MODEL_SIZE = config.get("model_size", "large-v3")
+MODEL_SIZE = config.get("model_size", "large-v3-turbo")
 MODEL_INFOS = config.get("model_infos", {})
 LANGUAGE_CODES = config.get("language_codes", [["de", "Deutsch"], ["en", "English"]])
 WAIT_ON_KEYBOARD = config.get("wait_on_keyboard", 0.02)

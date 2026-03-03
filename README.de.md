@@ -151,6 +151,10 @@ $env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sd
 Wichtig:
 - Starte die Exe aus genau derselben ROCm-venv, in der gebaut wurde.
 - `hotkey-transcriber` ohne Pfad kann sonst die globale/pipx-Installation starten.
+- Fuer gated Hugging-Face-Modelle setze vor dem Start `HF_TOKEN` (oder gib ihn beim ersten Download im interaktiven Prompt ein):
+  ```powershell
+  $env:HF_TOKEN="hf_xxx"
+  ```
 - Schnelltest:
   ```powershell
   Get-Command hotkey-transcriber
