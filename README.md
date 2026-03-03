@@ -129,6 +129,7 @@ Notes:
 - Python `3.12` is required for AMD ROCm wheels (`cp312`).
 - `-InstallAmdRocmFromGuide` defaults to `true`.
 - If `-RocmVenv` is omitted, the script checks current directory in this order: `.\.venv`, then `.\venv`; if neither exists, it creates `.\.venv`.
+- Official AMD Windows guide used by this flow: https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/windows/install-pytorch.html
 - If your ROCm venv is already fully prepared, you can skip package install:
   ```powershell
   .\tools\build_ctranslate2_rocm_windows.ps1 -InstallAmdRocmFromGuide:$false
