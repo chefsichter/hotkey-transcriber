@@ -149,6 +149,11 @@ $env:HOTKEY_TRANSCRIBER_ROCM_ROOT="$((Resolve-Path .\build\rocm-win-ct2\_rocm_sd
 Important:
 - Run the executable from the same ROCm venv that was used by the build script.
 - `hotkey-transcriber` without path may start a global/pipx install instead.
+- On Windows 11 + AMD native ROCm, compute type defaults to `float32` for stability.
+- Optional override:
+  ```powershell
+  $env:HOTKEY_TRANSCRIBER_COMPUTE_TYPE="float16"   # or float32, int8_float16, int8_float32
+  ```
 - For gated Hugging Face models, set `HF_TOKEN` before start (or enter it in the interactive prompt on first download):
   ```powershell
   $env:HF_TOKEN="hf_xxx"

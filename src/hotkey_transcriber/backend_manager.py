@@ -106,7 +106,14 @@ def resolve_backend(config):
         }
 
     device = detect_device()
-    compute_type = "float16" if device == "cuda" else "float32"
+    forced_compute_type = os.getenv("HOTKEY_TRANSCRIBER_COMPUTE_TYPE", "").strip().lower()
+    if forced_compute_type in ("float16", "float32", "int8_float16", "int8_float32"):
+        compute_type = forced_compute_type
+    elif selected == "native" and is_windows_amd_gpu() and device == "cuda":
+        # ROCm on Windows is currently more stable with float32 for some models/kernels.
+        compute_type = "float32"
+    else:
+        compute_type = "float16" if device == "cuda" else "float32"
     return {
         "backend": "native",
         "device": device,

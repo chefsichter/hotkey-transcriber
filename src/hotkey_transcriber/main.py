@@ -18,7 +18,17 @@ from hotkey_transcriber.resources_manger import get_microphone_icon_path
 
 config = load_config()
 
-MODEL_SIZE = config.get("model_size", "large-v3-turbo")
+_DEFAULT_MODEL = "large-v3-turbo"
+_LEGACY_GATED_MODEL = "TheChola/whisper-large-v3-turbo-german-faster-whisper"
+if config.get("model_size") == _LEGACY_GATED_MODEL:
+    config["model_size"] = _DEFAULT_MODEL
+    save_config(config)
+    print(
+        f"Hinweis: Modell '{_LEGACY_GATED_MODEL}' wurde als Standard auf "
+        f"'{_DEFAULT_MODEL}' umgestellt."
+    )
+
+MODEL_SIZE = config.get("model_size", _DEFAULT_MODEL)
 MODEL_INFOS = config.get("model_infos", {})
 LANGUAGE_CODES = config.get("language_codes", [["de", "Deutsch"], ["en", "English"]])
 WAIT_ON_KEYBOARD = config.get("wait_on_keyboard", 0.02)
