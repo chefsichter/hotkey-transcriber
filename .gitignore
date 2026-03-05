@@ -1,3 +1,4 @@
+venv/
 .venv/
 build/
 dist/
@@ -13,3 +14,5 @@ AppDir/
 Hotkey_Transcriber-x86_64.AppImage
 hotkey-transcriber.spec
 linuxdeploy-x86_64.AppImage
+.vendor
+src/hotkey_transcriber/resources/lib
