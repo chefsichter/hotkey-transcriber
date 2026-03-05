@@ -191,7 +191,7 @@ _TERMINAL_APP_NAMES = frozenset({
 })
 
 
-def _is_terminal_focused() -> bool:
+def is_terminal_focused() -> bool:
     """Detect if the focused window is a terminal emulator via AT-SPI."""
     try:
         import gi
@@ -340,7 +340,7 @@ class KeyboardController:
             time.sleep(self.wait)
             if self.backend_name == "ydotool":
                 try:
-                    if _is_terminal_focused():
+                    if is_terminal_focused():
                         self.backend.hotkey("ctrl", "shift", "v")
                     else:
                         self.backend.hotkey("ctrl", "v")

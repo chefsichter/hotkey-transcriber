@@ -76,7 +76,7 @@ def _import_sounddevice():
 
 sd = _import_sounddevice()
 
-from hotkey_transcriber.keyboard_controller import KeyboardController
+from hotkey_transcriber.keyboard_controller import KeyboardController, is_terminal_focused
 
 
 class SpeechRecorder:
@@ -140,18 +140,23 @@ class SpeechRecorder:
         Uses Event.wait() for timing instead of sleep() so that the thread
         unblocks immediately when stop_event is set.  `count` is a pure local
         variable – no shared state, no race condition.
+
+        In terminals the emoji is skipped (some TUIs need multiple backspaces
+        to delete a single emoji, leaving artefacts).
         """
-        count = 1  # accounts for the emoji pasted below
-        self.keyb_c.paste("📝", end="")
+        skip_emoji = self.keyb_c.backend_name == "ydotool" and is_terminal_focused()
+        if skip_emoji:
+            count = 0
+        else:
+            count = 1
+            self.keyb_c.paste("📝", end="")
         while True:
-            # Wait up to 0.5 s; returns True immediately if event is set.
             if stop_event.wait(timeout=0.5):
                 break
-            # interval=0: pyautogui types the dot instantly; the 0.5 s pacing
-            # is handled entirely by the Event.wait() above.
             self.keyb_c.write('.', end="", interval=0)
             count += 1
-        self.keyb_c.backspace(count)
+        if count > 0:
+            self.keyb_c.backspace(count)
 
     def _transcribe_and_paste(self):
         # stream.stop() in stop() already blocked until all callbacks finished,
