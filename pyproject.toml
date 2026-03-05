@@ -18,6 +18,7 @@ dependencies = [
     "pyperclip",
     "PyQt5",
     "evdev; sys_platform == 'linux'",
+    "PyGObject; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]

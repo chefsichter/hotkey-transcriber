@@ -1,6 +1,7 @@
 import ctypes.util
 import ctypes
 import platform
+import sys
 import threading
 import queue
 from pathlib import Path
@@ -91,7 +92,7 @@ class SpeechRecorder:
 
         self._lock = threading.Lock()
         self._running = False
-        self._rec_mark_printed = False
+        self._rec_mark_pasted = False
 
         self._audio_q = queue.Queue()
         self._stream = None  # opened on demand in start(), closed in stop()
@@ -217,22 +218,27 @@ class SpeechRecorder:
             )
             self._stream.start()
             self._running = True
-            self._rec_mark_printed = True  # set atomically before paste
+            self._rec_mark_pasted = sys.platform != "linux"
 
         self.keyb_c.save_clipboard()
-        self.keyb_c.paste(self.rec_mark)
+        if sys.platform == "linux":
+            # On Linux, Alt is physically held during PTT — Ctrl+V would
+            # be interpreted as Alt+Ctrl+V by the compositor.  Only print
+            # to terminal; the tray icon already signals recording status.
+            print(self.rec_mark, flush=True)
+        else:
+            self.keyb_c.paste(self.rec_mark)
 
     def stop(self):
         with self._lock:
             if not self._running:
                 return
             self._running = False
-            do_clear = self._rec_mark_printed
-            self._rec_mark_printed = False  # cleared atomically inside lock
+            do_clear = self._rec_mark_pasted
+            self._rec_mark_pasted = False
             stream = self._stream
             self._stream = None
 
-        # Remove REC marker immediately – text field still has focus here.
         if do_clear:
             self.keyb_c.backspace(len(self.rec_mark))
 
