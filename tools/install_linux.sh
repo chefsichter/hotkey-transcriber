@@ -36,6 +36,57 @@ if ! groups | grep -qw input; then
   echo "   Nach der Installation bitte ab- und wieder anmelden (oder 'newgrp input')."
 fi
 
+# --- System dependencies for PyGObject / AT-SPI (terminal detection) ---
+echo "Installing system dependencies for AT-SPI terminal detection..."
+sudo apt install -y libgirepository-2.0-dev gir1.2-atspi-2.0
+
+# --- ydotool v1.x fuer Tastatureingabe (Wayland + X11) ---
+# The distro package (v0.1.8) is too old; v1.x uses raw keycodes and requires
+# ydotoold.  Build from source if no working v1.x is found.
+_need_ydotool_build=0
+if command -v ydotool >/dev/null 2>&1; then
+  # v1.x prints "Usage: ydotool <cmd>" while v0.x prints "Usage: ydotool <tool>"
+  if ! ydotool key "" >/dev/null 2>&1; then
+    echo "ydotool found but too old (v0.x). Building v1.x from source..."
+    _need_ydotool_build=1
+  fi
+else
+  _need_ydotool_build=1
+fi
+
+if [[ "${_need_ydotool_build}" -eq 1 ]]; then
+  echo "Building ydotool v1.x from source (needed for keyboard input on Wayland)..."
+  sudo apt install -y cmake scdoc libevdev-dev build-essential git
+  _ydotool_tmp="$(mktemp -d)"
+  git clone --depth 1 --branch v1.0.4 https://github.com/ReimuNotMoe/ydotool.git "${_ydotool_tmp}"
+  cmake -S "${_ydotool_tmp}" -B "${_ydotool_tmp}/build"
+  cmake --build "${_ydotool_tmp}/build" --parallel
+  sudo cmake --install "${_ydotool_tmp}/build"
+  rm -rf "${_ydotool_tmp}"
+fi
+
+# Ensure ydotoold user service is installed and running.
+if command -v systemctl >/dev/null 2>&1; then
+  _svc_dir="${HOME}/.config/systemd/user"
+  mkdir -p "${_svc_dir}"
+  if [[ ! -f "${_svc_dir}/ydotoold.service" ]]; then
+    cat > "${_svc_dir}/ydotoold.service" <<'SVC_EOF'
+[Unit]
+Description=ydotoold - ydotool daemon
+
+[Service]
+ExecStart=/usr/local/bin/ydotoold
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+SVC_EOF
+  fi
+  systemctl --user daemon-reload
+  systemctl --user enable --now ydotoold >/dev/null 2>&1 || true
+fi
+
 # ---------------------------------------------------------------------------
 # AMD GPU (ROCm) install path — uses venv + CTranslate2 ROCm wheel
 # ---------------------------------------------------------------------------
