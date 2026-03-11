@@ -158,7 +158,7 @@ def _load_torch_whisper(size, device, compute_type):
     return model
 
 
-def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, rec_mark):
+def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, rec_mark, silence_timeout_ms=1500):
     message = "Lade SpeechRecorder…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
@@ -172,6 +172,7 @@ def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, 
         chunk_ms=chunk_ms,
         language=language,
         rec_mark=rec_mark,
+        silence_timeout_ms=silence_timeout_ms,
     )
 
     stop_event.set()

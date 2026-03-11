@@ -73,8 +73,86 @@ def _import_sounddevice():
         finally:
             ctypes.util.find_library = original_find_library
 
-
 sd = _import_sounddevice()
+
+
+# ---------------------------------------------------------------------------
+# Silero VAD (ONNX) — reuses the model bundled with faster-whisper
+# ---------------------------------------------------------------------------
+
+class _SileroVAD:
+    """Streaming Voice Activity Detection using Silero v6 (ONNX).
+
+    The model is shipped inside faster-whisper (assets/silero_vad_v6.onnx),
+    so no extra dependency is needed.  Each call processes 512 new samples
+    (~32 ms at 16 kHz) plus 64 context samples from the previous chunk.
+    """
+
+    WINDOW_SIZE = 512          # new samples per call
+    _CONTEXT_SIZE = 64         # trailing context carried over
+
+    def __init__(self, threshold: float = 0.5):
+        self.threshold = threshold
+        import importlib.util
+        import onnxruntime
+
+        # Locate the ONNX model bundled with faster-whisper without triggering
+        # the heavy ctranslate2 import at the package level.
+        spec = importlib.util.find_spec("faster_whisper")
+        if spec is None or spec.origin is None:
+            raise ImportError("faster-whisper is not installed")
+        model_path = Path(spec.origin).parent / "assets" / "silero_vad_v6.onnx"
+        if not model_path.exists():
+            # Fallback for older faster-whisper versions
+            model_path = model_path.with_name("silero_vad.onnx")
+        if not model_path.exists():
+            raise FileNotFoundError(
+                f"Silero VAD ONNX model not found in {model_path.parent}"
+            )
+
+        opts = onnxruntime.SessionOptions()
+        opts.inter_op_num_threads = 1
+        opts.intra_op_num_threads = 1
+        opts.log_severity_level = 4
+        self._session = onnxruntime.InferenceSession(
+            str(model_path),
+            providers=["CPUExecutionProvider"],
+            sess_options=opts,
+        )
+        self.reset()
+
+    def reset(self):
+        """Clear LSTM hidden state and context (call between recordings)."""
+        self._h = np.zeros((1, 1, 128), dtype=np.float32)
+        self._c = np.zeros((1, 1, 128), dtype=np.float32)
+        self._context = np.zeros(self._CONTEXT_SIZE, dtype=np.float32)
+
+    def is_speech(self, audio_f32: np.ndarray) -> bool:
+        """Return True when *audio_f32* (~512 float32 samples, 16 kHz) contains speech."""
+        x = np.asarray(audio_f32, dtype=np.float32)
+        if len(x) < self.WINDOW_SIZE:
+            x = np.pad(x, (0, self.WINDOW_SIZE - len(x)))
+        elif len(x) > self.WINDOW_SIZE:
+            x = x[: self.WINDOW_SIZE]
+
+        # Prepend context from previous chunk (silero v6 expects 576 = 64 + 512)
+        frame = np.concatenate([self._context, x])[np.newaxis, :]   # [1, 576]
+        self._context = x[-self._CONTEXT_SIZE:]
+
+        out, self._h, self._c = self._session.run(
+            None,
+            {"input": frame, "h": self._h, "c": self._c},
+        )
+        prob = out.item() if out.ndim == 0 else float(out.flat[0])
+        return prob > self.threshold
+
+
+def _load_vad() -> _SileroVAD | None:
+    try:
+        return _SileroVAD()
+    except Exception as exc:
+        print(f"Silero VAD nicht verfuegbar ({exc}). Auto-Stop deaktiviert.")
+        return None
 
 from hotkey_transcriber.keyboard_controller import KeyboardController, is_terminal_focused
 
@@ -82,7 +160,8 @@ from hotkey_transcriber.keyboard_controller import KeyboardController, is_termin
 class SpeechRecorder:
     def __init__(self, model, keyboard_controller: KeyboardController,
                  channels: int, chunk_ms: int,
-                 language: str, rec_mark: str):
+                 language: str, rec_mark: str,
+                 silence_timeout_ms: int = 1500):
         self.model = model
         self.keyb_c = keyboard_controller
         self.channels = channels
@@ -98,6 +177,10 @@ class SpeechRecorder:
         self._stream = None  # opened on demand in start(), closed in stop()
 
         self._transcribe_thread = None
+        self._auto_stop = False
+        self._silence_timeout_ms = silence_timeout_ms
+        self._silence_start_time = None
+        self._vad = _load_vad()
 
     @property
     def running(self):
@@ -111,8 +194,31 @@ class SpeechRecorder:
     # ------------------------------------------------------------------ #
 
     def _audio_callback(self, indata, frames, ti, status):
-        if self._running:
-            self._audio_q.put(indata.copy())
+        """Called by sounddevice for each audio chunk."""
+        if not self._running:
+            return
+
+        audio_chunk = indata.copy()
+        self._audio_q.put(audio_chunk)
+
+        # Silero VAD auto-stop: feed 512-sample float32 mono chunks
+        if self._auto_stop and self._vad is not None:
+            try:
+                is_speech = self._vad.is_speech(audio_chunk[:, 0])
+            except Exception:
+                is_speech = True  # Fallback if VAD fails
+
+            import time
+            now = time.time()
+
+            if is_speech:
+                self._silence_start_time = now
+            else:
+                if self._silence_start_time is None:
+                    self._silence_start_time = now
+                elif (now - self._silence_start_time) * 1000 > self._silence_timeout_ms:
+                    self._auto_stop = False
+                    threading.Thread(target=self.stop, daemon=True).start()
 
     # ------------------------------------------------------------------ #
     # Helpers                                                              #
@@ -203,7 +309,7 @@ class SpeechRecorder:
     # Public API                                                           #
     # ------------------------------------------------------------------ #
 
-    def start(self):
+    def start(self, auto_stop=False, silence_timeout_ms=1500):
         # Wait for a previous transcription to finish before inserting the new
         # REC marker. Without this, the first thread can paste its text *after*
         # the new marker, causing stop()'s backspace to delete transcribed text.
@@ -214,11 +320,27 @@ class SpeechRecorder:
             if self._running:
                 return
             self._flush_audio_queue()
+            
+            self._auto_stop = auto_stop
+            self._silence_timeout_ms = silence_timeout_ms
+            self._silence_start_time = None
+
+            if self._vad is not None:
+                self._vad.reset()
+
+            # Silero VAD needs exactly 512 samples per chunk (~32 ms at 16 kHz).
+            # For normal PTT (no auto-stop) we use the configured chunk_ms.
+            blocksize = (
+                _SileroVAD.WINDOW_SIZE
+                if auto_stop and self._vad is not None
+                else int(16_000 * self.chunk_ms / 1000)
+            )
+
             self._stream = sd.InputStream(
                 samplerate=16_000,
                 channels=1,
                 dtype="float32",
-                blocksize=int(16_000 * self.chunk_ms / 1000),
+                blocksize=blocksize,
                 callback=self._audio_callback,
             )
             self._stream.start()

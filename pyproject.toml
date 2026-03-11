@@ -8,7 +8,7 @@ version = "0.1.4"
 description = "Live-Diktat-Tool mit Whisper"
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "faster-whisper",
     "sounddevice",
@@ -17,6 +17,9 @@ dependencies = [
     "pyautogui",
     "pyperclip",
     "PyQt5",
+    "openwakeword",
+    "setuptools<82",
+
     "evdev; sys_platform == 'linux'",
     "PyGObject; sys_platform == 'linux'",
 ]
@@ -63,6 +66,9 @@ requires = [
     "pyautogui",
     "pyperclip",
     "PyQt5",
+    "openwakeword",
+    "setuptools<82",
+
     "evdev; sys_platform == 'linux'",
 ]
 

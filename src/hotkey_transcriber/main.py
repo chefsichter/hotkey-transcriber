@@ -2,6 +2,7 @@ import io
 import os
 import signal
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from hotkey_transcriber.object_loader import (
     load_speech_recorder,
 )
 from hotkey_transcriber.resources_manger import get_microphone_icon_path
+from hotkey_transcriber.wake_word import WakeWordListener
 
 
 config = load_config()
@@ -26,6 +28,11 @@ LANGUAGE = config.get("language", "de")
 REC_MARK = config.get("rec_mark", "🔴 REC")
 CHANNELS = config.get("channels", 1)
 CHUNK_MS = config.get("chunk_ms", 30)
+SILENCE_TIMEOUT_MS = config.get("silence_timeout_ms", 1500)
+NOTIFY_TIMEOUT_MS = config.get("notify_timeout_ms", 1500)
+WAKE_WORD_RESUME_DELAY_MS = config.get("wake_word_resume_delay_ms", 1000)
+WAKE_WORD_ENABLED = config.get("wake_word_enabled", False)
+WAKE_WORD_MODEL = config.get("wake_word_model", "hey jarvis")
 DEFAULT_TRAY_TIP = "Live-Diktat"
 
 _DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
@@ -125,11 +132,22 @@ def _init_runtime():
         chunk_ms=CHUNK_MS,
         language=LANGUAGE,
         rec_mark=REC_MARK,
+        silence_timeout_ms=SILENCE_TIMEOUT_MS,
     )
     hotkey_config = config.get("hotkey", _DEFAULT_HOTKEY)
     hotkey = load_keyboard_listener(recorder, hotkey_config=hotkey_config)
 
-    return backend, device, compute_type, use_torch_whisper, recorder, hotkey
+    # Callback activated by wake word detection
+    def on_wake_word_detected():
+        if not recorder.running:
+            ww_listener.pause()
+            recorder.start(auto_stop=True, silence_timeout_ms=SILENCE_TIMEOUT_MS)
+
+    ww_listener = WakeWordListener(callback=on_wake_word_detected, model_name=WAKE_WORD_MODEL)
+    if WAKE_WORD_ENABLED:
+        ww_listener.start()
+
+    return backend, device, compute_type, use_torch_whisper, recorder, hotkey, ww_listener, on_wake_word_detected
 
 
 def _show_hotkey_dialog(parent=None):
@@ -210,19 +228,26 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     log_path = _setup_log_capture()
 
-    backend, device, compute_type, use_torch_whisper, recorder, hotkey = _init_runtime()
+    backend, device, compute_type, use_torch_whisper, recorder, hotkey, ww_listener, _on_wake_word = _init_runtime()
     hotkey_ref = [hotkey]  # mutable container so the exit lambda always sees the current listener
 
+    from PyQt5.QtCore import QMetaObject, Qt, pyqtSignal, QObject
     from PyQt5.QtGui import QIcon, QTextCursor
     from PyQt5.QtWidgets import (
         QAction,
         QActionGroup,
         QApplication,
+        QCheckBox,
+        QComboBox,
         QDialog,
         QDialogButtonBox,
+
+        QFormLayout,
+        QLabel,
         QMenu,
         QPlainTextEdit,
         QPushButton,
+        QSpinBox,
         QSystemTrayIcon,
         QVBoxLayout,
     )
@@ -232,13 +257,126 @@ def main():
 
     icon = QIcon(get_microphone_icon_path())
     tray = QSystemTrayIcon(icon, parent=app)
+
+    # Helper: thread-safe desktop notification
+    # On Linux QSystemTrayIcon.showMessage() is unreliable (depends on
+    # desktop notification daemon).  Use notify-send which works everywhere.
+    # notify-send -t is ignored by most DEs, so we close the previous
+    # notification via --replace-id and gdbus after the configured timeout.
+    _notify_timeout_ms = NOTIFY_TIMEOUT_MS
+
+    if sys.platform == "linux":
+        import subprocess as _sp
+
+        _notify_icon_path = get_microphone_icon_path()
+        _last_notify_id = [0]  # mutable container for replace-id
+
+        def _close_notification(nid: int):
+            """Close a notification by its id via the freedesktop DBus interface."""
+            try:
+                _sp.Popen(
+                    ["gdbus", "call", "--session",
+                     "--dest", "org.freedesktop.Notifications",
+                     "--object-path", "/org/freedesktop/Notifications",
+                     "--method", "org.freedesktop.Notifications.CloseNotification",
+                     str(nid)],
+                    stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                )
+            except FileNotFoundError:
+                pass
+
+        def _tray_notify(title: str, msg: str, icon_type=QSystemTrayIcon.Information, ms: int = 0):
+            if ms <= 0:
+                ms = _notify_timeout_ms
+            try:
+                proc = _sp.run(
+                    ["gdbus", "call", "--session",
+                     "--dest", "org.freedesktop.Notifications",
+                     "--object-path", "/org/freedesktop/Notifications",
+                     "--method", "org.freedesktop.Notifications.Notify",
+                     "Hotkey Transcriber",               # app_name
+                     str(_last_notify_id[0]),             # replaces_id
+                     _notify_icon_path,                   # icon
+                     title, msg,
+                     "[]",                                # actions
+                     "{}",                                # hints
+                     str(ms)],                            # expire_timeout
+                    capture_output=True, text=True, timeout=3,
+                )
+                # gdbus returns e.g. "(uint32 42,)\n" — extract the id
+                out = proc.stdout.strip()
+                if out.startswith("(uint32 "):
+                    nid = int(out.split()[1].rstrip(",)"))
+                    _last_notify_id[0] = nid
+                    # Schedule close after timeout (DEs often ignore expire_timeout)
+                    threading.Timer(ms / 1000.0, _close_notification, args=(nid,)).start()
+            except (FileNotFoundError, _sp.TimeoutExpired):
+                # Fallback: plain notify-send without auto-close
+                try:
+                    _sp.Popen(
+                        ["notify-send", "-t", str(ms), "-i", _notify_icon_path,
+                         "--app-name", "Hotkey Transcriber", title, msg],
+                        stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                    )
+                except FileNotFoundError:
+                    pass
+    else:
+        class _TraySignals(QObject):
+            show_message = pyqtSignal(str, str, int, int)
+
+        _tray_signals = _TraySignals()
+        _tray_signals.show_message.connect(
+            lambda title, msg, icon_type, ms: tray.showMessage(title, msg, icon_type, ms)
+        )
+
+        def _tray_notify(title: str, msg: str, icon_type=QSystemTrayIcon.Information, ms: int = 0):
+            if ms <= 0:
+                ms = _notify_timeout_ms
+            _tray_signals.show_message.emit(title, msg, icon_type, ms)
     tray.setToolTip(_build_tray_tooltip(config.get("hotkey", _DEFAULT_HOTKEY)))
 
     menu = QMenu()
 
     act_start = QAction("Aufnahme starten")
     act_stop = QAction("Aufnahme stoppen")
-    act_start.triggered.connect(recorder.start)
+
+    def _resume_wake_word_if_idle():
+        import time as _time
+        # Short delay so the wake word model doesn't immediately
+        # re-trigger from residual audio/scores.
+        _time.sleep(WAKE_WORD_RESUME_DELAY_MS / 1000.0)
+        # Only resume if recorder is idle — if a new recording started in the
+        # meantime, the wake word stream must not open alongside the recorder.
+        if ww_listener.running and not recorder.running:
+            ww_listener.resume()
+
+    # Patch the wake word callback to show tray notifications
+    def _notifying_wake_word_callback():
+        if not recorder.running:
+            ww_listener.pause()
+            _tray_notify("Aufnahme gestartet", "Wake Word erkannt – Aufnahme läuft…")
+            recorder.start(auto_stop=True, silence_timeout_ms=SILENCE_TIMEOUT_MS)
+    ww_listener.callback = _notifying_wake_word_callback
+
+    def _start_recording_wrapper(*args, auto_stop=False, **kwargs):
+        if ww_listener.running:
+            ww_listener.pause()
+        recorder.start(auto_stop=auto_stop)
+
+    original_recorder_stop = recorder.stop
+    def _patched_recorder_stop(*args, **kwargs):
+        was_running = recorder.running
+        original_recorder_stop()
+        if was_running and ww_listener.running:
+            _tray_notify("Aufnahme beendet", "Transkription läuft…")
+            # Resume in a background thread so calling code isn't blocked
+            threading.Thread(target=_resume_wake_word_if_idle, daemon=True).start()
+    recorder.stop = _patched_recorder_stop
+
+    hotkey_ref[0].start_callback = _start_recording_wrapper
+    hotkey_ref[0].stop_callback = recorder.stop
+
+    act_start.triggered.connect(_start_recording_wrapper)
     act_stop.triggered.connect(recorder.stop)
     menu.addAction(act_start)
     menu.addAction(act_stop)
@@ -256,7 +394,7 @@ def main():
         def make_info_slot(a):
             def slot():
                 info = a.toolTip() or a.text()
-                tray.showMessage("Modell-Info", info, QSystemTrayIcon.Information, 5000)
+                _tray_notify("Modell-Info", info)
 
             return slot
 
@@ -281,29 +419,25 @@ def main():
                         use_torch_whisper=use_torch_whisper,
                     )
                 except Exception as exc:
-                    tray.showMessage(
+                    _tray_notify(
                         "Modellfehler",
                         f"Modell konnte nicht geladen werden: {model_name}",
-                        QSystemTrayIcon.Warning,
-                        3000,
                     )
                     print(f"Modellwechsel fehlgeschlagen fuer '{model_name}': {exc}")
                     if was_running:
-                        recorder.start()
+                        _start_recording_wrapper()
                     return
 
                 recorder.model = new_model
                 config["model_size"] = model_name
                 save_config(config)
-                tray.showMessage(
+                _tray_notify(
                     "Modell geaendert",
                     f"Neues Modell: {model_name}",
-                    QSystemTrayIcon.Information,
-                    1500,
                 )
 
                 if was_running:
-                    recorder.start()
+                    _start_recording_wrapper()
 
             return slot
 
@@ -326,11 +460,9 @@ def main():
                 recorder.set_language(c)
                 config["language"] = c
                 save_config(config)
-                tray.showMessage(
+                _tray_notify(
                     "Erkennungssprache geaendert",
                     f"Neue Erkennungssprache: {l}",
-                    QSystemTrayIcon.Information,
-                    1500,
                 )
 
             return slot
@@ -355,25 +487,161 @@ def main():
         result = _show_hotkey_dialog()
         if result:
             new_hotkey = load_keyboard_listener(recorder, hotkey_config=result)
+            new_hotkey.start_callback = _start_recording_wrapper
+            new_hotkey.stop_callback = recorder.stop
             hotkey_ref[0] = new_hotkey
             config["hotkey"] = result
             save_config(config)
             _refresh_hotkey_ui(result)
-            tray.showMessage(
+            _tray_notify(
                 "Tastenkombination geändert",
                 f"Neue Tastenkombination: {_hotkey_label(result)}",
-                QSystemTrayIcon.Information,
-                2000,
             )
         else:
             # Restart with the existing config
             old_cfg = config.get("hotkey", _DEFAULT_HOTKEY)
             restored = load_keyboard_listener(recorder, hotkey_config=old_cfg)
+            restored.start_callback = _start_recording_wrapper
+            restored.stop_callback = recorder.stop
             hotkey_ref[0] = restored
             _refresh_hotkey_ui(old_cfg)
 
     act_hotkey.triggered.connect(_on_change_hotkey)
     menu.addAction(act_hotkey)
+    
+    # --- Wake Word ---
+    menu.addSeparator()
+    wake_word_menu = menu.addMenu("Wake Word")
+    act_ww_toggle = QAction("Aktivieren ('Hey Jarvis')")
+    act_ww_toggle.setCheckable(True)
+    
+    if not ww_listener.is_supported:
+        act_ww_toggle.setEnabled(False)
+        act_ww_toggle.setToolTip("openwakeword ist nicht installiert.")
+    else:
+        act_ww_toggle.setChecked(WAKE_WORD_ENABLED)
+        
+        def _on_toggle_ww(checked):
+            config["wake_word_enabled"] = checked
+            save_config(config)
+            if checked:
+                ww_listener.start()
+                _tray_notify(
+                    "Wake Word aktiviert",
+                    f"Lauscht nach: '{ww_listener.model_name}'",
+                )
+            else:
+                ww_listener.stop()
+                _tray_notify(
+                    "Wake Word deaktiviert",
+                    "Wake Word Erkennung gestoppt.",
+                )
+                
+        act_ww_toggle.toggled.connect(_on_toggle_ww)
+    
+    wake_word_menu.addAction(act_ww_toggle)
+    # -----------------
+
+    # --- Einstellungen ---
+    act_settings = QAction("Einstellungen…")
+
+    # Available wake word models for the combo box
+    _WW_MODELS = ["hey jarvis", "alexa", "hey mycroft", "ok google"]
+
+    def _on_show_settings():
+        global SILENCE_TIMEOUT_MS, NOTIFY_TIMEOUT_MS, WAKE_WORD_RESUME_DELAY_MS
+
+        dlg = QDialog()
+        dlg.setWindowTitle("Einstellungen")
+        form = QFormLayout(dlg)
+
+        sp_silence = QSpinBox(dlg)
+        sp_silence.setRange(500, 10000)
+        sp_silence.setSuffix(" ms")
+        sp_silence.setSingleStep(100)
+        sp_silence.setValue(SILENCE_TIMEOUT_MS)
+        form.addRow("Stille bis Auto-Stop:", sp_silence)
+
+        sp_notify = QSpinBox(dlg)
+        sp_notify.setRange(200, 10000)
+        sp_notify.setSuffix(" ms")
+        sp_notify.setSingleStep(100)
+        sp_notify.setValue(NOTIFY_TIMEOUT_MS)
+        form.addRow("Benachrichtigungsdauer:", sp_notify)
+
+        sp_resume = QSpinBox(dlg)
+        sp_resume.setRange(100, 10000)
+        sp_resume.setSuffix(" ms")
+        sp_resume.setSingleStep(100)
+        sp_resume.setValue(WAKE_WORD_RESUME_DELAY_MS)
+        form.addRow("Wake-Word Resume-Delay:", sp_resume)
+
+        cb_ww = QCheckBox("Aktiviert", dlg)
+        cb_ww.setChecked(config.get("wake_word_enabled", False))
+        form.addRow("Wake Word:", cb_ww)
+
+        combo_ww = QComboBox(dlg)
+        combo_ww.addItems(_WW_MODELS)
+        current_model = config.get("wake_word_model", "hey jarvis")
+        idx = combo_ww.findText(current_model)
+        if idx >= 0:
+            combo_ww.setCurrentIndex(idx)
+        else:
+            combo_ww.addItem(current_model)
+            combo_ww.setCurrentText(current_model)
+        form.addRow("Wake-Word Modell:", combo_ww)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=dlg
+        )
+        form.addRow(buttons)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        # Apply values
+        SILENCE_TIMEOUT_MS = sp_silence.value()
+        NOTIFY_TIMEOUT_MS = sp_notify.value()
+        WAKE_WORD_RESUME_DELAY_MS = sp_resume.value()
+
+        config["silence_timeout_ms"] = SILENCE_TIMEOUT_MS
+        config["notify_timeout_ms"] = NOTIFY_TIMEOUT_MS
+        config["wake_word_resume_delay_ms"] = WAKE_WORD_RESUME_DELAY_MS
+
+        new_ww_enabled = cb_ww.isChecked()
+        new_ww_model = combo_ww.currentText()
+        config["wake_word_enabled"] = new_ww_enabled
+        config["wake_word_model"] = new_ww_model
+        save_config(config)
+
+        # Update _notify_timeout_ms used by _tray_notify
+        nonlocal _notify_timeout_ms
+        _notify_timeout_ms = NOTIFY_TIMEOUT_MS
+
+        # Sync wake word toggle checkbox
+        act_ww_toggle.blockSignals(True)
+        act_ww_toggle.setChecked(new_ww_enabled)
+        act_ww_toggle.blockSignals(False)
+
+        # Apply wake word changes
+        if new_ww_enabled and not ww_listener.running:
+            ww_listener.model_name = new_ww_model
+            ww_listener.start()
+        elif not new_ww_enabled and ww_listener.running:
+            ww_listener.stop()
+        elif ww_listener.running and new_ww_model != ww_listener.model_name:
+            ww_listener.stop()
+            ww_listener.model_name = new_ww_model
+            ww_listener.start()
+
+        _tray_notify("Einstellungen", "Einstellungen gespeichert.")
+
+    act_settings.triggered.connect(_on_show_settings)
+    menu.addAction(act_settings)
+    menu.addSeparator()
+    # ---------------------
 
     if autostart.is_supported():
         act_autostart = QAction("Beim Anmelden starten")
@@ -384,21 +652,17 @@ def main():
             try:
                 autostart.set_enabled(checked)
                 state_label = "aktiviert" if checked else "deaktiviert"
-                tray.showMessage(
+                _tray_notify(
                     "Autostart",
                     f"Autostart {state_label}.",
-                    QSystemTrayIcon.Information,
-                    2000,
                 )
             except Exception as exc:
                 act_autostart.blockSignals(True)
                 act_autostart.setChecked(not checked)
                 act_autostart.blockSignals(False)
-                tray.showMessage(
+                _tray_notify(
                     "Autostart-Fehler",
                     "Autostart konnte nicht geaendert werden.",
-                    QSystemTrayIcon.Warning,
-                    3000,
                 )
                 print(f"Autostart konnte nicht geaendert werden: {exc}")
 
@@ -437,7 +701,7 @@ def main():
     menu.addSeparator()
 
     act_exit = QAction("Beenden")
-    act_exit.triggered.connect(lambda: (recorder.stop(), hotkey_ref[0].stop(), app.quit()))
+    act_exit.triggered.connect(lambda: (recorder.stop(), ww_listener.stop(), hotkey_ref[0].stop(), app.quit()))
     menu.addAction(act_exit)
 
     tray.setContextMenu(menu)
