@@ -184,8 +184,24 @@ if [[ "${AMD_GPU}" -eq 1 ]]; then
   cd "${CT2_DIR}/python"
   pip install -r install_requirements.txt
   export CTRANSLATE2_ROOT="${VENV_DIR}"
+  rm -rf build dist *.egg-info
   python setup.py bdist_wheel
-  pip install --force-reinstall dist/*.whl
+  CT2_WHEEL_PATH="$(
+    python - <<'PY'
+import glob
+import sys
+
+py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+matches = sorted(glob.glob(f"dist/ctranslate2-*-{py_tag}-{py_tag}-*.whl"))
+if not matches:
+    raise SystemExit(
+        f"No ctranslate2 wheel matching interpreter tag {py_tag} found in dist/."
+    )
+print(matches[-1])
+PY
+  )"
+  echo "Installing CTranslate2 wheel: ${CT2_WHEEL_PATH}"
+  pip install --force-reinstall "${CT2_WHEEL_PATH}"
 
   cd "${REPO_ROOT}"
 
