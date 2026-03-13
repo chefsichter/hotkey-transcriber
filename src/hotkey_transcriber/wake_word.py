@@ -1,6 +1,7 @@
 import threading
 import time
 import queue
+from pathlib import Path
 import numpy as np
 
 from hotkey_transcriber.speech_recorder import _import_sounddevice
@@ -13,6 +14,28 @@ try:
     _HAVE_WAKE_WORD = True
 except ImportError:
     _HAVE_WAKE_WORD = False
+
+_CUSTOM_WAKEWORD_DIRS = [
+    Path(__file__).resolve().parent / "resources" / "wakewords",
+]
+
+
+def _normalize_model_name(name: str) -> str:
+    return name.strip().lower().replace(" ", "_")
+
+
+def list_available_wake_word_models() -> list[str]:
+    models = set()
+    if _HAVE_WAKE_WORD:
+        models.update(key.replace("_", " ") for key in openwakeword.models.keys())
+
+    for directory in _CUSTOM_WAKEWORD_DIRS:
+        if not directory.exists():
+            continue
+        for model_path in directory.glob("*.onnx"):
+            models.add(model_path.stem.replace("_", " "))
+
+    return sorted(models)
 
 
 class WakeWordListener:
@@ -33,14 +56,22 @@ class WakeWordListener:
         self._cooldown_until = 0.0  # ignore detections until this timestamp
 
     def _resolve_model(self):
-        normalized_name = self.model_name.strip().lower().replace(" ", "_")
-        model_info = openwakeword.models.get(normalized_name)
-        if not model_info:
-            available = ", ".join(sorted(openwakeword.models.keys()))
-            raise ValueError(
-                f"Unknown wake word model '{self.model_name}'. Available models: {available}"
-            )
-        return normalized_name, model_info["model_path"]
+        normalized_name = _normalize_model_name(self.model_name)
+
+        if _HAVE_WAKE_WORD:
+            model_info = openwakeword.models.get(normalized_name)
+            if model_info:
+                return normalized_name, model_info["model_path"]
+
+        for directory in _CUSTOM_WAKEWORD_DIRS:
+            model_path = directory / f"{normalized_name}.onnx"
+            if model_path.exists():
+                return normalized_name, str(model_path)
+
+        available = ", ".join(list_available_wake_word_models())
+        raise ValueError(
+            f"Unknown wake word model '{self.model_name}'. Available models: {available}"
+        )
 
     @property
     def is_supported(self) -> bool:

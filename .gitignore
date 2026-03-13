@@ -17,3 +17,5 @@ linuxdeploy-x86_64.AppImage
 .vendor
 src/hotkey_transcriber/resources/lib
 src/hotkey_transcriber/config/config.json
+my_custom_model
+src/hotkey_transcriber/resources/back/

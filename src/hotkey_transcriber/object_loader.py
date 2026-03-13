@@ -158,7 +158,16 @@ def _load_torch_whisper(size, device, compute_type):
     return model
 
 
-def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, rec_mark, silence_timeout_ms=1500):
+def load_speech_recorder(
+    model,
+    wait_on_keyboard,
+    channels,
+    chunk_ms,
+    language,
+    rec_mark,
+    silence_timeout_ms=1500,
+    max_initial_wait_ms=5000,
+):
     message = "Lade SpeechRecorder…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
@@ -173,6 +182,7 @@ def load_speech_recorder(model, wait_on_keyboard, channels, chunk_ms, language, 
         language=language,
         rec_mark=rec_mark,
         silence_timeout_ms=silence_timeout_ms,
+        max_initial_wait_ms=max_initial_wait_ms,
     )
 
     stop_event.set()
@@ -200,5 +210,4 @@ def load_keyboard_listener(recorder, hotkey_config: dict = None):
     spinner_thread.join()
     print("✅ KeyBoardListener bereit.", flush=True)
     return hotkey
-
 

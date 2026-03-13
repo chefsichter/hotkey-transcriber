@@ -5,9 +5,10 @@
     "key": "r"
   },
   "language": "de",
-  "silence_timeout_ms": 1000,
+  "silence_timeout_ms": 500,
   "notify_timeout_ms": 2000,
-  "wake_word_resume_delay_ms": 500,
+  "wake_word_resume_delay_ms": 1000,
   "wake_word_enabled": true,
-  "wake_word_model": "hey jarvis"
+  "wake_word_model": "hey dude",
+  "max_initial_wait_ms": 5000
 }

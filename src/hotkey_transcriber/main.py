@@ -15,7 +15,10 @@ from hotkey_transcriber.object_loader import (
     load_speech_recorder,
 )
 from hotkey_transcriber.resources_manger import get_microphone_icon_path
-from hotkey_transcriber.wake_word import WakeWordListener
+from hotkey_transcriber.wake_word import (
+    WakeWordListener,
+    list_available_wake_word_models,
+)
 
 
 config = load_config()
@@ -29,6 +32,7 @@ REC_MARK = config.get("rec_mark", "🔴 REC")
 CHANNELS = config.get("channels", 1)
 CHUNK_MS = config.get("chunk_ms", 30)
 SILENCE_TIMEOUT_MS = config.get("silence_timeout_ms", 1500)
+MAX_INITIAL_WAIT_MS = config.get("max_initial_wait_ms", 5000)
 NOTIFY_TIMEOUT_MS = config.get("notify_timeout_ms", 1500)
 WAKE_WORD_RESUME_DELAY_MS = config.get("wake_word_resume_delay_ms", 1000)
 WAKE_WORD_ENABLED = config.get("wake_word_enabled", False)
@@ -133,6 +137,7 @@ def _init_runtime():
         language=LANGUAGE,
         rec_mark=REC_MARK,
         silence_timeout_ms=SILENCE_TIMEOUT_MS,
+        max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
     )
     hotkey_config = config.get("hotkey", _DEFAULT_HOTKEY)
     hotkey = load_keyboard_listener(recorder, hotkey_config=hotkey_config)
@@ -141,7 +146,11 @@ def _init_runtime():
     def on_wake_word_detected():
         if not recorder.running:
             ww_listener.pause()
-            recorder.start(auto_stop=True, silence_timeout_ms=SILENCE_TIMEOUT_MS)
+            recorder.start(
+                auto_stop=True,
+                silence_timeout_ms=SILENCE_TIMEOUT_MS,
+                max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
+            )
 
     ww_listener = WakeWordListener(callback=on_wake_word_detected, model_name=WAKE_WORD_MODEL)
     if WAKE_WORD_ENABLED:
@@ -355,7 +364,11 @@ def main():
         if not recorder.running:
             ww_listener.pause()
             _tray_notify("Aufnahme gestartet", "Wake Word erkannt – Aufnahme läuft…")
-            recorder.start(auto_stop=True, silence_timeout_ms=SILENCE_TIMEOUT_MS)
+            recorder.start(
+                auto_stop=True,
+                silence_timeout_ms=SILENCE_TIMEOUT_MS,
+                max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
+            )
     ww_listener.callback = _notifying_wake_word_callback
 
     def _start_recording_wrapper(*args, auto_stop=False, **kwargs):
@@ -512,8 +525,13 @@ def main():
     # --- Wake Word ---
     menu.addSeparator()
     wake_word_menu = menu.addMenu("Wake Word")
-    act_ww_toggle = QAction("Aktivieren ('Hey Jarvis')")
+    act_ww_toggle = QAction()
     act_ww_toggle.setCheckable(True)
+
+    def _refresh_wake_word_ui(model_name: str):
+        act_ww_toggle.setText(f"Aktivieren ('{model_name.title()}')")
+
+    _refresh_wake_word_ui(ww_listener.model_name)
     
     if not ww_listener.is_supported:
         act_ww_toggle.setEnabled(False)
@@ -525,6 +543,8 @@ def main():
             config["wake_word_enabled"] = checked
             save_config(config)
             if checked:
+                ww_listener.model_name = config.get("wake_word_model", ww_listener.model_name)
+                _refresh_wake_word_ui(ww_listener.model_name)
                 ww_listener.start()
                 _tray_notify(
                     "Wake Word aktiviert",
@@ -546,10 +566,10 @@ def main():
     act_settings = QAction("Einstellungen…")
 
     # Available wake word models for the combo box
-    _WW_MODELS = ["hey jarvis", "alexa", "hey mycroft", "ok google"]
+    _WW_MODELS = list_available_wake_word_models()
 
     def _on_show_settings():
-        global SILENCE_TIMEOUT_MS, NOTIFY_TIMEOUT_MS, WAKE_WORD_RESUME_DELAY_MS
+        global SILENCE_TIMEOUT_MS, MAX_INITIAL_WAIT_MS, NOTIFY_TIMEOUT_MS, WAKE_WORD_RESUME_DELAY_MS
 
         dlg = QDialog()
         dlg.setWindowTitle("Einstellungen")
@@ -561,6 +581,14 @@ def main():
         sp_silence.setSingleStep(100)
         sp_silence.setValue(SILENCE_TIMEOUT_MS)
         form.addRow("Stille bis Auto-Stop:", sp_silence)
+
+        sp_initial_wait = QSpinBox(dlg)
+        sp_initial_wait.setRange(0, 10000)
+        sp_initial_wait.setSuffix(" ms")
+        sp_initial_wait.setSingleStep(100)
+        sp_initial_wait.setSpecialValueText("deaktiviert")
+        sp_initial_wait.setValue(MAX_INITIAL_WAIT_MS)
+        form.addRow("Max. Anfangswarten:", sp_initial_wait)
 
         sp_notify = QSpinBox(dlg)
         sp_notify.setRange(200, 10000)
@@ -603,18 +631,23 @@ def main():
 
         # Apply values
         SILENCE_TIMEOUT_MS = sp_silence.value()
+        MAX_INITIAL_WAIT_MS = sp_initial_wait.value()
         NOTIFY_TIMEOUT_MS = sp_notify.value()
         WAKE_WORD_RESUME_DELAY_MS = sp_resume.value()
 
         config["silence_timeout_ms"] = SILENCE_TIMEOUT_MS
+        config["max_initial_wait_ms"] = MAX_INITIAL_WAIT_MS
         config["notify_timeout_ms"] = NOTIFY_TIMEOUT_MS
         config["wake_word_resume_delay_ms"] = WAKE_WORD_RESUME_DELAY_MS
 
         new_ww_enabled = cb_ww.isChecked()
         new_ww_model = combo_ww.currentText()
+        previous_ww_model = ww_listener.model_name
         config["wake_word_enabled"] = new_ww_enabled
         config["wake_word_model"] = new_ww_model
         save_config(config)
+        ww_listener.model_name = new_ww_model
+        _refresh_wake_word_ui(new_ww_model)
 
         # Update _notify_timeout_ms used by _tray_notify
         nonlocal _notify_timeout_ms
@@ -627,13 +660,11 @@ def main():
 
         # Apply wake word changes
         if new_ww_enabled and not ww_listener.running:
-            ww_listener.model_name = new_ww_model
             ww_listener.start()
         elif not new_ww_enabled and ww_listener.running:
             ww_listener.stop()
-        elif ww_listener.running and new_ww_model != ww_listener.model_name:
+        elif ww_listener.running and new_ww_model != previous_ww_model:
             ww_listener.stop()
-            ww_listener.model_name = new_ww_model
             ww_listener.start()
 
         _tray_notify("Einstellungen", "Einstellungen gespeichert.")

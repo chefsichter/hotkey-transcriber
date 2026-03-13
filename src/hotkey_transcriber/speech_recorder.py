@@ -2,6 +2,7 @@ import ctypes.util
 import ctypes
 import platform
 import sys
+import time
 import threading
 import queue
 from pathlib import Path
@@ -161,7 +162,8 @@ class SpeechRecorder:
     def __init__(self, model, keyboard_controller: KeyboardController,
                  channels: int, chunk_ms: int,
                  language: str, rec_mark: str,
-                 silence_timeout_ms: int = 1500):
+                 silence_timeout_ms: int = 1500,
+                 max_initial_wait_ms: int | None = 5000):
         self.model = model
         self.keyb_c = keyboard_controller
         self.channels = channels
@@ -179,8 +181,17 @@ class SpeechRecorder:
         self._transcribe_thread = None
         self._auto_stop = False
         self._silence_timeout_ms = silence_timeout_ms
+        self._max_initial_wait_ms = self._normalize_initial_wait_ms(max_initial_wait_ms)
         self._silence_start_time = None
+        self._start_time = None
+        self._speech_detected = False
         self._vad = _load_vad()
+
+    @staticmethod
+    def _normalize_initial_wait_ms(value):
+        if value is None or value <= 0:
+            return None
+        return value
 
     @property
     def running(self):
@@ -208,12 +219,22 @@ class SpeechRecorder:
             except Exception:
                 is_speech = True  # Fallback if VAD fails
 
-            import time
             now = time.time()
 
             if is_speech:
+                self._speech_detected = True
                 self._silence_start_time = now
             else:
+                if not self._speech_detected:
+                    if (
+                        self._max_initial_wait_ms is not None
+                        and self._start_time is not None
+                        and (now - self._start_time) * 1000 > self._max_initial_wait_ms
+                    ):
+                        self._auto_stop = False
+                        threading.Thread(target=self.stop, daemon=True).start()
+                    return
+
                 if self._silence_start_time is None:
                     self._silence_start_time = now
                 elif (now - self._silence_start_time) * 1000 > self._silence_timeout_ms:
@@ -309,7 +330,7 @@ class SpeechRecorder:
     # Public API                                                           #
     # ------------------------------------------------------------------ #
 
-    def start(self, auto_stop=False, silence_timeout_ms=1500):
+    def start(self, auto_stop=False, silence_timeout_ms=1500, max_initial_wait_ms=None):
         # Wait for a previous transcription to finish before inserting the new
         # REC marker. Without this, the first thread can paste its text *after*
         # the new marker, causing stop()'s backspace to delete transcribed text.
@@ -320,10 +341,12 @@ class SpeechRecorder:
             if self._running:
                 return
             self._flush_audio_queue()
-            
+
             self._auto_stop = auto_stop
             self._silence_timeout_ms = silence_timeout_ms
+            self._max_initial_wait_ms = self._normalize_initial_wait_ms(max_initial_wait_ms)
             self._silence_start_time = None
+            self._speech_detected = False
 
             if self._vad is not None:
                 self._vad.reset()
@@ -344,6 +367,7 @@ class SpeechRecorder:
                 callback=self._audio_callback,
             )
             self._stream.start()
+            self._start_time = time.time()
             self._running = True
             self._rec_mark_pasted = sys.platform != "linux"
 
