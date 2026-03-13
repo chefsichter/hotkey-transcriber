@@ -1,6 +1,7 @@
 import ctypes.util
 import ctypes
 import platform
+import re
 import sys
 import time
 import threading
@@ -169,6 +170,7 @@ class SpeechRecorder:
     def __init__(self, model, keyboard_controller: KeyboardController,
                  channels: int, chunk_ms: int,
                  language: str | None, rec_mark: str,
+                 spoken_enter_enabled: bool = False,
                  silence_timeout_ms: int = 1500,
                  max_initial_wait_ms: int | None = 5000):
         self.model = model
@@ -177,6 +179,7 @@ class SpeechRecorder:
         self.chunk_ms = chunk_ms
         self.language = self._normalize_language(language)
         self.rec_mark = rec_mark
+        self.spoken_enter_enabled = spoken_enter_enabled
 
         self._lock = threading.Lock()
         self._running = False
@@ -210,6 +213,24 @@ class SpeechRecorder:
 
     def set_language(self, language: str | None):
         self.language = self._normalize_language(language)
+
+    def _split_trailing_enter_command(self, text: str) -> tuple[str, bool]:
+        if not self.spoken_enter_enabled:
+            return text, False
+        stripped = text.rstrip()
+        if not stripped:
+            return text, False
+        parts = stripped.split()
+        if not parts:
+            return text, False
+
+        last_token = parts[-1]
+        normalized_last_token = re.sub(r"^\W+|\W+$", "", last_token, flags=re.UNICODE).casefold()
+        if normalized_last_token != "enter":
+            return text, False
+
+        prefix = stripped[:stripped.rfind(last_token)].rstrip()
+        return prefix, True
 
     # ------------------------------------------------------------------ #
     # Audio callback (sounddevice internal thread)                         #
@@ -331,9 +352,14 @@ class SpeechRecorder:
             dot_stop.set()
             dot_thread.join()
 
-        if full:
-            self.keyb_c.paste(full)
-            self.keyb_c.write(" ", end="", interval=0)  # direct keypress – clipboard strips trailing space on Windows
+        output_text, should_press_enter = self._split_trailing_enter_command(full)
+
+        if output_text:
+            self.keyb_c.paste(output_text)
+            if not should_press_enter:
+                self.keyb_c.write(" ", end="", interval=0)  # direct keypress – clipboard strips trailing space on Windows
+        if should_press_enter:
+            self.keyb_c.press("enter")
 
         self.keyb_c.load_clipboard()
 

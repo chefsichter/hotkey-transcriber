@@ -165,6 +165,7 @@ def load_speech_recorder(
     chunk_ms,
     language,
     rec_mark,
+    spoken_enter_enabled=False,
     silence_timeout_ms=1500,
     max_initial_wait_ms=5000,
 ):
@@ -181,6 +182,7 @@ def load_speech_recorder(
         chunk_ms=chunk_ms,
         language=language,
         rec_mark=rec_mark,
+        spoken_enter_enabled=spoken_enter_enabled,
         silence_timeout_ms=silence_timeout_ms,
         max_initial_wait_ms=max_initial_wait_ms,
     )
@@ -210,4 +212,3 @@ def load_keyboard_listener(recorder, hotkey_config: dict = None):
     spinner_thread.join()
     print("✅ KeyBoardListener bereit.", flush=True)
     return hotkey
-

@@ -329,6 +329,22 @@ class KeyboardController:
                         self._mark_backend_unavailable(exc)
                         break
 
+    def press(self, key: str, presses: int = 1, interval: float = 0):
+        """Press a single key one or more times."""
+        with self.lock:
+            if self.backend_name in ("pyautogui", "ydotool"):
+                try:
+                    self.backend.press(key, presses=presses, interval=interval)
+                except Exception as exc:
+                    self._mark_backend_unavailable(exc)
+            elif self.backend_name == "keyboard":
+                for _ in range(max(1, int(presses))):
+                    try:
+                        self.backend.send(key)
+                    except Exception as exc:
+                        self._mark_backend_unavailable(exc)
+                        break
+
     def paste(self, text: str, end="\n"):
         """
         Type text into the focused window via clipboard + Ctrl+V.

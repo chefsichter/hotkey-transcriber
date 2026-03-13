@@ -39,6 +39,7 @@ NOTIFY_TIMEOUT_MS = config.get("notify_timeout_ms", 1500)
 WAKE_WORD_RESUME_DELAY_MS = config.get("wake_word_resume_delay_ms", 1000)
 WAKE_WORD_ENABLED = config.get("wake_word_enabled", False)
 WAKE_WORD_MODEL = config.get("wake_word_model", "hey jarvis")
+SPOKEN_ENTER_ENABLED = config.get("spoken_enter_enabled", False)
 DEFAULT_TRAY_TIP = "Live-Diktat"
 
 _DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
@@ -158,6 +159,7 @@ def _init_runtime():
         chunk_ms=CHUNK_MS,
         language=LANGUAGE,
         rec_mark=REC_MARK,
+        spoken_enter_enabled=SPOKEN_ENTER_ENABLED,
         silence_timeout_ms=SILENCE_TIMEOUT_MS,
         max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
     )
@@ -697,6 +699,23 @@ def main():
     menu.addAction(act_settings)
     menu.addSeparator()
     # ---------------------
+
+    act_spoken_enter = QAction("Sprachkommando 'Enter'")
+    act_spoken_enter.setCheckable(True)
+    act_spoken_enter.setChecked(recorder.spoken_enter_enabled)
+
+    def _on_toggle_spoken_enter(checked):
+        recorder.spoken_enter_enabled = checked
+        config["spoken_enter_enabled"] = checked
+        save_config(config)
+        state_label = "aktiviert" if checked else "deaktiviert"
+        _tray_notify(
+            "Sprachkommando",
+            f"'Enter' als Taste {state_label}.",
+        )
+
+    act_spoken_enter.toggled.connect(_on_toggle_spoken_enter)
+    menu.addAction(act_spoken_enter)
 
     if autostart.is_supported():
         act_autostart = QAction("Beim Anmelden starten")
