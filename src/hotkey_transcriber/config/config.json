@@ -4,11 +4,11 @@
     "modifier": "alt",
     "key": "r"
   },
-  "language": "de",
+  "language": "auto",
   "silence_timeout_ms": 500,
   "notify_timeout_ms": 2000,
   "wake_word_resume_delay_ms": 1000,
   "wake_word_enabled": true,
-  "wake_word_model": "hey dude",
+  "wake_word_model": "hey chef",
   "max_initial_wait_ms": 5000
 }

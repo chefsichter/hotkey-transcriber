@@ -15,6 +15,7 @@ from hotkey_transcriber.object_loader import (
     load_speech_recorder,
 )
 from hotkey_transcriber.resources_manger import get_microphone_icon_path
+from hotkey_transcriber.speech_recorder import normalize_language
 from hotkey_transcriber.wake_word import (
     WakeWordListener,
     list_available_wake_word_models,
@@ -27,7 +28,8 @@ MODEL_SIZE = config.get("model_size", "large-v3-turbo")
 MODEL_INFOS = config.get("model_infos", {})
 LANGUAGE_CODES = config.get("language_codes", [["de", "Deutsch"], ["en", "English"]])
 WAIT_ON_KEYBOARD = config.get("wait_on_keyboard", 0.02)
-LANGUAGE = config.get("language", "de")
+LANGUAGE_AUTO_CODE = "auto"
+LANGUAGE_AUTO_LABEL = "Auto"
 REC_MARK = config.get("rec_mark", "🔴 REC")
 CHANNELS = config.get("channels", 1)
 CHUNK_MS = config.get("chunk_ms", 30)
@@ -54,6 +56,26 @@ MODEL_CHOICES = [
 ]
 
 _LOG_FILE_HANDLE = None
+
+
+def _language_config_value(value):
+    normalized = normalize_language(value)
+    if normalized is None:
+        return LANGUAGE_AUTO_CODE
+    return normalized
+
+
+def _language_menu_options():
+    options = [(LANGUAGE_AUTO_CODE, LANGUAGE_AUTO_LABEL)]
+    options.extend(
+        (code, label)
+        for code, label in LANGUAGE_CODES
+        if code != LANGUAGE_AUTO_CODE
+    )
+    return options
+
+
+LANGUAGE = normalize_language(config.get("language", "de"))
 
 
 class _TeeStream(io.TextIOBase):
@@ -462,16 +484,18 @@ def main():
     lang_group = QActionGroup(menu)
     lang_group.setExclusive(True)
 
-    for code, label in LANGUAGE_CODES:
+    current_language = _language_config_value(recorder.language)
+
+    for code, label in _language_menu_options():
         action = QAction(label)
         action.setCheckable(True)
-        if recorder.language == code:
+        if current_language == code:
             action.setChecked(True)
 
         def make_lang_slot(c, l):
             def slot():
                 recorder.set_language(c)
-                config["language"] = c
+                config["language"] = _language_config_value(c)
                 save_config(config)
                 _tray_notify(
                     "Erkennungssprache geaendert",

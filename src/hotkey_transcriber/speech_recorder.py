@@ -158,17 +158,24 @@ def _load_vad() -> _SileroVAD | None:
 from hotkey_transcriber.keyboard_controller import KeyboardController, is_terminal_focused
 
 
+def normalize_language(language: str | None) -> str | None:
+    """Return None for auto-detect, otherwise the language code as-is."""
+    if language in (None, "", "auto"):
+        return None
+    return language
+
+
 class SpeechRecorder:
     def __init__(self, model, keyboard_controller: KeyboardController,
                  channels: int, chunk_ms: int,
-                 language: str, rec_mark: str,
+                 language: str | None, rec_mark: str,
                  silence_timeout_ms: int = 1500,
                  max_initial_wait_ms: int | None = 5000):
         self.model = model
         self.keyb_c = keyboard_controller
         self.channels = channels
         self.chunk_ms = chunk_ms
-        self.language = language
+        self.language = self._normalize_language(language)
         self.rec_mark = rec_mark
 
         self._lock = threading.Lock()
@@ -197,8 +204,12 @@ class SpeechRecorder:
     def running(self):
         return self._running
 
-    def set_language(self, language: str):
-        self.language = language
+    @staticmethod
+    def _normalize_language(language: str | None) -> str | None:
+        return normalize_language(language)
+
+    def set_language(self, language: str | None):
+        self.language = self._normalize_language(language)
 
     # ------------------------------------------------------------------ #
     # Audio callback (sounddevice internal thread)                         #
