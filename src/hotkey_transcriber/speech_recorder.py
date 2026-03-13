@@ -180,6 +180,7 @@ class SpeechRecorder:
         self.language = self._normalize_language(language)
         self.rec_mark = rec_mark
         self.spoken_enter_enabled = spoken_enter_enabled
+        self._active_rec_mark = ""
 
         self._lock = threading.Lock()
         self._running = False
@@ -231,6 +232,11 @@ class SpeechRecorder:
 
         prefix = stripped[:stripped.rfind(last_token)].rstrip()
         return prefix, True
+
+    def _recording_marker_text(self) -> str:
+        if sys.platform == "linux":
+            return "REC"
+        return self.rec_mark
 
     # ------------------------------------------------------------------ #
     # Audio callback (sounddevice internal thread)                         #
@@ -406,16 +412,14 @@ class SpeechRecorder:
             self._stream.start()
             self._start_time = time.time()
             self._running = True
-            self._rec_mark_pasted = sys.platform != "linux"
+            self._active_rec_mark = self._recording_marker_text()
+            self._rec_mark_pasted = bool(self._active_rec_mark)
 
         self.keyb_c.save_clipboard()
         if sys.platform == "linux":
-            # On Linux, Alt is physically held during PTT — Ctrl+V would
-            # be interpreted as Alt+Ctrl+V by the compositor.  Only print
-            # to terminal; the tray icon already signals recording status.
-            print(self.rec_mark, flush=True)
+            self.keyb_c.write(self._active_rec_mark, end="", interval=0)
         else:
-            self.keyb_c.paste(self.rec_mark)
+            self.keyb_c.paste(self._active_rec_mark)
 
     def stop(self):
         with self._lock:
@@ -424,11 +428,13 @@ class SpeechRecorder:
             self._running = False
             do_clear = self._rec_mark_pasted
             self._rec_mark_pasted = False
+            active_rec_mark = self._active_rec_mark
+            self._active_rec_mark = ""
             stream = self._stream
             self._stream = None
 
         if do_clear:
-            self.keyb_c.backspace(len(self.rec_mark))
+            self.keyb_c.backspace(len(active_rec_mark))
 
         # stop() blocks until the last audio callback completes (≤ one
         # chunk_ms = 30 ms), guaranteeing all audio is in the queue before
