@@ -22,7 +22,6 @@ Usage:
 """
 
 import sys
-import threading
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QAction, QActionGroup, QApplication, QMenu, QSystemTrayIcon
@@ -95,8 +94,6 @@ class TrayApp:
         self.silence_timeout_ms: int = config.get("silence_timeout_ms", 1500)
         self.max_initial_wait_ms: int = config.get("max_initial_wait_ms", 5000)
         self.notify_timeout_ms: int = config.get("notify_timeout_ms", 1500)
-        self.wake_word_resume_delay_ms: int = config.get("wake_word_resume_delay_ms", 1000)
-
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
 
@@ -136,11 +133,11 @@ class TrayApp:
         recorder = self.recorder
         ww = self.ww_listener
 
-        def _resume_if_idle() -> None:
-            import time
-            time.sleep(self.wake_word_resume_delay_ms / 1000.0)
+        def _resume_wake_word_if_idle() -> None:
             if ww.running and not recorder.running:
                 ww.resume()
+
+        recorder.on_transcription_finished = _resume_wake_word_if_idle
 
         def _wake_word_callback(detected_name=None) -> None:
             if recorder.running:
@@ -176,7 +173,7 @@ class TrayApp:
                     "because wake-word scripts are disabled",
                     flush=True,
                 )
-                threading.Thread(target=_resume_if_idle, daemon=True).start()
+                _resume_wake_word_if_idle()
                 return
             if detected_name:
                 print(
@@ -200,7 +197,6 @@ class TrayApp:
             original_stop()
             if was_running and ww.running:
                 self.notifier.notify("Aufnahme beendet", "Transkription läuft…")
-                threading.Thread(target=_resume_if_idle, daemon=True).start()
 
         recorder.stop = _patched_stop
         self.hotkey_ref[0].start_callback = self._start_recording
@@ -467,7 +463,6 @@ class TrayApp:
             silence_timeout_ms=self.silence_timeout_ms,
             max_initial_wait_ms=self.max_initial_wait_ms,
             notify_timeout_ms=self.notify_timeout_ms,
-            wake_word_resume_delay_ms=self.wake_word_resume_delay_ms,
             spoken_text_actions=self.config.get("spoken_text_actions", []),
             wake_word_script_actions=self.config.get("wake_word_script_actions", []),
             ww_models=self._ww_models,
@@ -480,7 +475,6 @@ class TrayApp:
         self.silence_timeout_ms = result["silence_timeout_ms"]
         self.max_initial_wait_ms = result["max_initial_wait_ms"]
         self.notify_timeout_ms = result["notify_timeout_ms"]
-        self.wake_word_resume_delay_ms = result["wake_word_resume_delay_ms"]
         self.notifier.timeout_ms = self.notify_timeout_ms
 
         new_ww_enabled = result["wake_word_enabled"]
@@ -493,7 +487,6 @@ class TrayApp:
                 "silence_timeout_ms": self.silence_timeout_ms,
                 "max_initial_wait_ms": self.max_initial_wait_ms,
                 "notify_timeout_ms": self.notify_timeout_ms,
-                "wake_word_resume_delay_ms": self.wake_word_resume_delay_ms,
                 "spoken_text_actions": result["spoken_text_actions"],
                 "wake_word_script_actions": result["wake_word_script_actions"],
                 "wake_word_enabled": new_ww_enabled,

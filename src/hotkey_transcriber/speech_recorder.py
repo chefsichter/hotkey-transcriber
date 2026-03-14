@@ -17,7 +17,7 @@ from hotkey_transcriber.actions.spoken_text_actions import (
 )
 from hotkey_transcriber.keyboard.keyboard_controller import KeyboardController, is_terminal_focused
 
-_UNDO_ALIASES = frozenset({"undo", "andu", "undu", "ando"})
+_UNDO_ALIASES = frozenset({"undo", "andu", "undu", "ando", "andou"})
 
 
 def _linux_lib_dir() -> Path | None:
@@ -173,14 +173,21 @@ def normalize_language(language: str | None) -> str | None:
 
 
 class SpeechRecorder:
-    def __init__(self, model, keyboard_controller: KeyboardController,
-                 channels: int, chunk_ms: int,
-                 language: str | None, rec_mark: str,
-                 spoken_enter_enabled: bool = False,
-                 spoken_undo_enabled: bool = False,
-                 spoken_text_action_executor: SpokenTextActionExecutor | None = None,
-                 silence_timeout_ms: int = 1500,
-                 max_initial_wait_ms: int | None = 5000):
+    def __init__(
+        self,
+        model,
+        keyboard_controller: KeyboardController,
+        channels: int,
+        chunk_ms: int,
+        language: str | None,
+        rec_mark: str,
+        spoken_enter_enabled: bool = False,
+        spoken_undo_enabled: bool = False,
+        spoken_text_action_executor: SpokenTextActionExecutor | None = None,
+        silence_timeout_ms: int = 1500,
+        max_initial_wait_ms: int | None = 5000,
+        on_transcription_finished=None,
+    ):
         self.model = model
         self.keyb_c = keyboard_controller
         self.channels = channels
@@ -208,6 +215,7 @@ class SpeechRecorder:
         self._start_time = None
         self._speech_detected = False
         self._vad = _load_vad()
+        self.on_transcription_finished = on_transcription_finished
 
     @staticmethod
     def _normalize_initial_wait_ms(value):
@@ -415,68 +423,75 @@ class SpeechRecorder:
             self.keyb_c.backspace(count)
 
     def _transcribe_and_paste(self):
-        # stream.stop() in stop() already blocked until all callbacks finished,
-        # so the queue contains the complete recording at this point.
-        chunks = self._drain_audio_queue()
-        if not chunks:
-            self.keyb_c.load_clipboard()
-            return
-
-        full = ""
-        dot_stop = threading.Event()
-        dot_thread = threading.Thread(
-            target=self._run_dot_printer, args=(dot_stop,), daemon=True
-        )
-        dot_thread.start()
         try:
-            audio = np.concatenate(chunks, axis=0)[:, 0]
-            seg_iterator, _ = self.model.transcribe(
-                audio,
-                language=self.language,
-                vad_filter=True,
-                beam_size=1,
-                best_of=1,
-                temperature=0,
-                condition_on_previous_text=False,
+            # stream.stop() in stop() already blocked until all callbacks finished,
+            # so the queue contains the complete recording at this point.
+            chunks = self._drain_audio_queue()
+            if not chunks:
+                self.keyb_c.load_clipboard()
+                return
+
+            full = ""
+            dot_stop = threading.Event()
+            dot_thread = threading.Thread(
+                target=self._run_dot_printer, args=(dot_stop,), daemon=True
             )
-            segments = list(seg_iterator)
-            full = " ".join(s.text.strip() for s in segments).strip()
-        except Exception as e:
-            print(f"Transkription fehlgeschlagen: {e}")
-        finally:
-            # Signal dot printer to stop and wait for it to erase its chars
-            # before we paste the result – order matters for the text field.
-            dot_stop.set()
-            dot_thread.join()
+            dot_thread.start()
+            try:
+                audio = np.concatenate(chunks, axis=0)[:, 0]
+                seg_iterator, _ = self.model.transcribe(
+                    audio,
+                    language=self.language,
+                    vad_filter=True,
+                    beam_size=1,
+                    best_of=1,
+                    temperature=0,
+                    condition_on_previous_text=False,
+                )
+                segments = list(seg_iterator)
+                full = " ".join(s.text.strip() for s in segments).strip()
+            except Exception as e:
+                print(f"Transkription fehlgeschlagen: {e}")
+            finally:
+                # Signal dot printer to stop and wait for it to erase its chars
+                # before we paste the result – order matters for the text field.
+                dot_stop.set()
+                dot_thread.join()
 
-        action_text, _ = self._run_spoken_action(full)
-        output_text, should_press_enter, cancel_current, undo_previous = self._resolve_output_action(
-            action_text
-        )
+            action_text, _ = self._run_spoken_action(full)
+            output_text, should_press_enter, cancel_current, undo_previous = (
+                self._resolve_output_action(action_text)
+            )
 
-        if cancel_current:
-            self.keyb_c.load_clipboard()
-            return
+            if cancel_current:
+                self.keyb_c.load_clipboard()
+                return
 
-        if undo_previous:
-            self._undo_last_speech_insert()
-            self.keyb_c.load_clipboard()
-            return
+            if undo_previous:
+                self._undo_last_speech_insert()
+                self.keyb_c.load_clipboard()
+                return
 
-        inserted_char_count = 0
-        if output_text:
-            self.keyb_c.paste(output_text)
-            inserted_char_count += len(output_text)
-            if not should_press_enter:
-                self.keyb_c.write(" ", end="", interval=0)  # direct keypress – clipboard strips trailing space on Windows
+            inserted_char_count = 0
+            if output_text:
+                self.keyb_c.paste(output_text)
+                inserted_char_count += len(output_text)
+                if not should_press_enter:
+                    self.keyb_c.write(" ", end="", interval=0)  # direct keypress – clipboard strips trailing space on Windows
+                    inserted_char_count += 1
+            if should_press_enter:
+                self.keyb_c.press("enter")
                 inserted_char_count += 1
-        if should_press_enter:
-            self.keyb_c.press("enter")
-            inserted_char_count += 1
-        if inserted_char_count > 0:
-            self._remember_speech_insert(inserted_char_count)
+            if inserted_char_count > 0:
+                self._remember_speech_insert(inserted_char_count)
 
-        self.keyb_c.load_clipboard()
+            self.keyb_c.load_clipboard()
+        finally:
+            if self.on_transcription_finished is not None:
+                try:
+                    self.on_transcription_finished()
+                except Exception as exc:
+                    print(f"Transkriptions-Abschluss-Callback fehlgeschlagen: {exc}")
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #

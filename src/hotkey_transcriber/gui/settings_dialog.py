@@ -35,7 +35,6 @@ def show_settings_dialog(
     silence_timeout_ms: int,
     max_initial_wait_ms: int,
     notify_timeout_ms: int,
-    wake_word_resume_delay_ms: int,
     spoken_text_actions: list,
     wake_word_script_actions: list,
     ww_models: list[str],
@@ -67,13 +66,6 @@ def show_settings_dialog(
     sp_notify.setSingleStep(100)
     sp_notify.setValue(notify_timeout_ms)
     form.addRow("Benachrichtigungsdauer:", sp_notify)
-
-    sp_resume = QSpinBox(dlg)
-    sp_resume.setRange(100, 10000)
-    sp_resume.setSuffix(" ms")
-    sp_resume.setSingleStep(100)
-    sp_resume.setValue(wake_word_resume_delay_ms)
-    form.addRow("Wake-Word Resume-Delay:", sp_resume)
 
     cb_ww = QCheckBox("Aktiviert", dlg)
     cb_ww.setChecked(config.get("wake_word_enabled", False))
@@ -131,7 +123,6 @@ def show_settings_dialog(
         "silence_timeout_ms": sp_silence.value(),
         "max_initial_wait_ms": sp_initial_wait.value(),
         "notify_timeout_ms": sp_notify.value(),
-        "wake_word_resume_delay_ms": sp_resume.value(),
         "wake_word_enabled": cb_ww.isChecked(),
         "wake_word_model": combo_ww.currentText(),
         "spoken_text_actions": parsed_actions["spoken_text_actions"],

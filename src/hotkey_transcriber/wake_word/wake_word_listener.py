@@ -50,6 +50,7 @@ except ImportError:
 _CUSTOM_WAKEWORD_DIRS = [
     Path(__file__).resolve().parent.parent / "resources" / "wakewords",
 ]
+_WAKE_WORD_COOLDOWN_SECONDS = 1.0
 
 
 def _normalize_model_name(name: str) -> str:
@@ -186,7 +187,7 @@ class WakeWordListener:
                 print(f"\nWake word detected: {detected_name}! (score: {detected_score:.2f})")
                 self._flush_queue()
                 self._model.reset()
-                self._cooldown_until = time.time() + 4.0
+                self._cooldown_until = time.time() + _WAKE_WORD_COOLDOWN_SECONDS
                 try:
                     self.callback(detected_name)
                 except Exception as e:
@@ -255,7 +256,6 @@ class WakeWordListener:
         self._flush_queue()
         if self._model is not None:
             self._model.reset()
-        self._cooldown_until = time.time() + 4.0
         try:
             self._open_stream()
         except Exception as e:

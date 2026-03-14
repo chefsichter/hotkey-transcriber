@@ -96,6 +96,19 @@ def test_resolve_output_action_recognizes_ando_with_punctuation_as_undo():
     assert undo_previous is True
 
 
+def test_resolve_output_action_recognizes_andou_as_undo():
+    recorder = _build_recorder(spoken_undo_enabled=True)
+
+    output_text, should_press_enter, cancel_current, undo_previous = recorder._resolve_output_action(
+        "andou"
+    )
+
+    assert output_text == ""
+    assert should_press_enter is False
+    assert cancel_current is False
+    assert undo_previous is True
+
+
 def test_resolve_output_action_recognizes_und_du_as_undo():
     recorder = _build_recorder(spoken_undo_enabled=True)
 
