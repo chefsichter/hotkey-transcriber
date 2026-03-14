@@ -2,7 +2,7 @@ import signal
 
 from hotkey_transcriber.app_log_capture import setup_log_capture
 from hotkey_transcriber.config.config_manager import load_config
-from hotkey_transcriber.gui.tray_app import TrayApp, _DEFAULT_HOTKEY
+from hotkey_transcriber.gui.tray_app import _DEFAULT_HOTKEY, TrayApp
 from hotkey_transcriber.speech_recorder import normalize_language
 from hotkey_transcriber.transcription.model_and_recorder_factory import (
     load_keyboard_listener,
@@ -43,6 +43,7 @@ def _init_runtime(config: dict):
         language=normalize_language(config.get("language", "de")),
         rec_mark=config.get("rec_mark", "🔴 REC"),
         spoken_enter_enabled=config.get("spoken_enter_enabled", False),
+        spoken_undo_enabled=config.get("spoken_undo_enabled", False),
         spoken_text_actions_enabled=config.get("spoken_text_actions_enabled", True),
         spoken_text_actions=config.get("spoken_text_actions", []),
         silence_timeout_ms=config.get("silence_timeout_ms", 1500),

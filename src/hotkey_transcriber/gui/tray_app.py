@@ -103,7 +103,7 @@ class TrayApp:
         icon_path = get_microphone_icon_path()
         self.tray = QSystemTrayIcon(QIcon(icon_path), parent=self.app)
         self.notifier = TrayNotifier(self.tray, self.notify_timeout_ms, icon_path)
-        self._qt_refs = []
+        self._qt_refs: list[object] = []
 
         self._ww_models = list_available_wake_word_models()
         self._patch_recorder_and_wake_word()
@@ -254,6 +254,7 @@ class TrayApp:
 
     def _build_model_menu(self, parent_menu: QMenu) -> None:
         model_menu = parent_menu.addMenu("Modell")
+        assert model_menu is not None
         model_menu.setToolTipsVisible(True)
         self._keep_qt_ref(model_menu)
         group = self._keep_qt_ref(QActionGroup(parent_menu))
@@ -310,11 +311,14 @@ class TrayApp:
 
     def _build_language_menu(self, parent_menu: QMenu) -> None:
         lang_menu = parent_menu.addMenu("Erkennungssprache")
+        assert lang_menu is not None
         self._keep_qt_ref(lang_menu)
         group = self._keep_qt_ref(QActionGroup(parent_menu))
         group.setExclusive(True)
         language_codes = self.config.get("language_codes", [["de", "Deutsch"], ["en", "English"]])
-        options = [("auto", "Auto")] + [(c, l) for c, l in language_codes if c != "auto"]
+        options = [("auto", "Auto")] + [
+            (code, label_name) for code, label_name in language_codes if code != "auto"
+        ]
         current = normalize_language(self.recorder.language) or "auto"
         for code, label in options:
             action = self._keep_qt_ref(QAction(label, lang_menu))
@@ -364,6 +368,7 @@ class TrayApp:
 
     def _build_wake_word_menu(self, parent_menu: QMenu) -> None:
         wake_word_menu = parent_menu.addMenu("Wake Word")
+        assert wake_word_menu is not None
         self._keep_qt_ref(wake_word_menu)
         self._act_ww_toggle = self._keep_qt_ref(QAction(wake_word_menu))
         self._act_ww_toggle.setCheckable(True)
@@ -399,12 +404,19 @@ class TrayApp:
 
     def _build_text_actions_menu(self, parent_menu: QMenu) -> None:
         text_actions_menu = parent_menu.addMenu("Text-Sprachaktionen")
+        assert text_actions_menu is not None
         self._keep_qt_ref(text_actions_menu)
         act_spoken_enter = self._keep_qt_ref(QAction("Enter", text_actions_menu))
         act_spoken_enter.setCheckable(True)
         act_spoken_enter.setChecked(self.recorder.spoken_enter_enabled)
         act_spoken_enter.toggled.connect(self._on_toggle_spoken_enter)
         text_actions_menu.addAction(act_spoken_enter)
+
+        act_spoken_undo = self._keep_qt_ref(QAction("Undo", text_actions_menu))
+        act_spoken_undo.setCheckable(True)
+        act_spoken_undo.setChecked(self.recorder.spoken_undo_enabled)
+        act_spoken_undo.toggled.connect(self._on_toggle_spoken_undo)
+        text_actions_menu.addAction(act_spoken_undo)
 
         self._act_ww_scripts = self._keep_qt_ref(QAction("Wake-Word-Skripte", parent_menu))
         self._act_ww_scripts.setCheckable(True)
@@ -420,6 +432,13 @@ class TrayApp:
         save_config(self.config)
         state = "aktiviert" if checked else "deaktiviert"
         self.notifier.notify("Sprachkommando", f"'Enter' als Taste {state}.")
+
+    def _on_toggle_spoken_undo(self, checked: bool) -> None:
+        self.recorder.spoken_undo_enabled = checked
+        self.config["spoken_undo_enabled"] = checked
+        save_config(self.config)
+        state = "aktiviert" if checked else "deaktiviert"
+        self.notifier.notify("Sprachkommando", f"'Undo' als Rueckgaengig {state}.")
 
     def _on_toggle_ww_scripts(self, checked: bool) -> None:
         was_running = self.ww_listener.running

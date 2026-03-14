@@ -6,9 +6,18 @@ import re
 import sys
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 
 import numpy as np
+
+from hotkey_transcriber.actions.spoken_text_actions import (
+    _URL_INSERT_BUILTINS,
+    SpokenTextActionExecutor,
+)
+from hotkey_transcriber.keyboard.keyboard_controller import KeyboardController, is_terminal_focused
+
+_UNDO_ALIASES = frozenset({"undo", "andu", "undu", "ando"})
 
 
 def _linux_lib_dir() -> Path | None:
@@ -42,10 +51,8 @@ def _preload_linux_audio_deps() -> None:
 
     jack = lib_dir / "libjack.so.0.1.0"
     if jack.is_file():
-        try:
+        with suppress(OSError):
             ctypes.CDLL(str(jack), mode=ctypes.RTLD_GLOBAL)
-        except OSError:
-            pass
 
 
 def _import_sounddevice():
@@ -157,12 +164,6 @@ def _load_vad() -> _SileroVAD | None:
         print(f"Silero VAD nicht verfuegbar ({exc}). Auto-Stop deaktiviert.")
         return None
 
-from hotkey_transcriber.actions.spoken_text_actions import (
-    _URL_INSERT_BUILTINS,
-    SpokenTextActionExecutor,
-)
-from hotkey_transcriber.keyboard.keyboard_controller import KeyboardController, is_terminal_focused
-
 
 def normalize_language(language: str | None) -> str | None:
     """Return None for auto-detect, otherwise the language code as-is."""
@@ -176,6 +177,7 @@ class SpeechRecorder:
                  channels: int, chunk_ms: int,
                  language: str | None, rec_mark: str,
                  spoken_enter_enabled: bool = False,
+                 spoken_undo_enabled: bool = False,
                  spoken_text_action_executor: SpokenTextActionExecutor | None = None,
                  silence_timeout_ms: int = 1500,
                  max_initial_wait_ms: int | None = 5000):
@@ -186,14 +188,16 @@ class SpeechRecorder:
         self.language = self._normalize_language(language)
         self.rec_mark = rec_mark
         self.spoken_enter_enabled = spoken_enter_enabled
+        self.spoken_undo_enabled = spoken_undo_enabled
         self.spoken_text_action_executor = spoken_text_action_executor
         self._active_rec_mark = ""
+        self._last_speech_insert_char_count = 0
 
         self._lock = threading.Lock()
         self._running = False
         self._rec_mark_pasted = False
 
-        self._audio_q = queue.Queue()
+        self._audio_q: queue.Queue[np.ndarray] = queue.Queue()
         self._stream = None  # opened on demand in start(), closed in stop()
 
         self._transcribe_thread = None
@@ -223,7 +227,10 @@ class SpeechRecorder:
         self.language = self._normalize_language(language)
 
     def _split_trailing_enter_command(self, text: str) -> tuple[str, bool]:
-        if not self.spoken_enter_enabled:
+        return self._split_trailing_command(text, "enter", self.spoken_enter_enabled)
+
+    def _split_trailing_undo_command(self, text: str) -> tuple[str, bool]:
+        if not self.spoken_undo_enabled:
             return text, False
         stripped = text.rstrip()
         if not stripped:
@@ -234,11 +241,64 @@ class SpeechRecorder:
 
         last_token = parts[-1]
         normalized_last_token = re.sub(r"^\W+|\W+$", "", last_token, flags=re.UNICODE).casefold()
-        if normalized_last_token != "enter":
-            return text, False
+        if normalized_last_token in _UNDO_ALIASES:
+            prefix = stripped[:stripped.rfind(last_token)].rstrip()
+            return prefix, True
 
+        if len(parts) < 2:
+            return text, False
+        last_two = parts[-2:]
+        normalized_last_two = [
+            re.sub(r"^\W+|\W+$", "", token, flags=re.UNICODE).casefold()
+            for token in last_two
+        ]
+        if normalized_last_two != ["und", "du"]:
+            return text, False
+        phrase = stripped[stripped.rfind(last_two[0]):].rstrip()
+        prefix = stripped[:stripped.rfind(phrase)].rstrip()
+        return prefix, True
+
+    @staticmethod
+    def _split_trailing_command(
+        text: str, command: str, enabled: bool
+    ) -> tuple[str, bool]:
+        if not enabled:
+            return text, False
+        stripped = text.rstrip()
+        if not stripped:
+            return text, False
+        parts = stripped.split()
+        if not parts:
+            return text, False
+        last_token = parts[-1]
+        normalized_last_token = re.sub(r"^\W+|\W+$", "", last_token, flags=re.UNICODE).casefold()
+        if normalized_last_token != command:
+            return text, False
         prefix = stripped[:stripped.rfind(last_token)].rstrip()
         return prefix, True
+
+    def _prepare_builtin_remainder(self, remainder: str) -> tuple[str, bool]:
+        processed_remainder, should_submit = self._split_trailing_enter_command(remainder)
+        processed_remainder, should_cancel = self._split_trailing_undo_command(processed_remainder)
+        if should_cancel:
+            return "", False
+        return processed_remainder, should_submit
+
+    def _resolve_output_action(self, text: str) -> tuple[str, bool, bool, bool]:
+        output_text, should_cancel = self._split_trailing_undo_command(text)
+        if should_cancel:
+            return "", False, bool(output_text), not bool(output_text)
+        output_text, should_press_enter = self._split_trailing_enter_command(text)
+        return output_text, should_press_enter, False, False
+
+    def _remember_speech_insert(self, char_count: int) -> None:
+        self._last_speech_insert_char_count = max(0, char_count)
+
+    def _undo_last_speech_insert(self) -> None:
+        if self._last_speech_insert_char_count <= 0:
+            return
+        self.keyb_c.backspace(self._last_speech_insert_char_count)
+        self._last_speech_insert_char_count = 0
 
     def _recording_marker_text(self) -> str:
         if sys.platform == "linux":
@@ -255,7 +315,7 @@ class SpeechRecorder:
         processed_remainder = remainder
         should_submit = False
         if action.builtin in _URL_INSERT_BUILTINS:
-            processed_remainder, should_submit = self._split_trailing_enter_command(remainder)
+            processed_remainder, should_submit = self._prepare_builtin_remainder(remainder)
         executed, consumed_remainder = self.spoken_text_action_executor.execute(
             action,
             processed_remainder,
@@ -390,14 +450,31 @@ class SpeechRecorder:
             dot_thread.join()
 
         action_text, _ = self._run_spoken_action(full)
-        output_text, should_press_enter = self._split_trailing_enter_command(action_text)
+        output_text, should_press_enter, cancel_current, undo_previous = self._resolve_output_action(
+            action_text
+        )
 
+        if cancel_current:
+            self.keyb_c.load_clipboard()
+            return
+
+        if undo_previous:
+            self._undo_last_speech_insert()
+            self.keyb_c.load_clipboard()
+            return
+
+        inserted_char_count = 0
         if output_text:
             self.keyb_c.paste(output_text)
+            inserted_char_count += len(output_text)
             if not should_press_enter:
                 self.keyb_c.write(" ", end="", interval=0)  # direct keypress – clipboard strips trailing space on Windows
+                inserted_char_count += 1
         if should_press_enter:
             self.keyb_c.press("enter")
+            inserted_char_count += 1
+        if inserted_char_count > 0:
+            self._remember_speech_insert(inserted_char_count)
 
         self.keyb_c.load_clipboard()
 

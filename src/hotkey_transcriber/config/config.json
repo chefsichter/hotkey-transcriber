@@ -9,11 +9,11 @@
   "notify_timeout_ms": 2000,
   "wake_word_resume_delay_ms": 1000,
   "wake_word_enabled": true,
-  "wake_word_model": "hey chef",
+  "wake_word_model": "hey chef v1",
   "wake_word_script_actions_enabled": false,
   "wake_word_script_actions": [
     {
-      "wake_word_model": "hey chat",
+      "wake_word_model": "hey dude",
       "start_recording_after": true,
       "delay_ms": 1200,
       "builtin": "temporary_chat_firefox"
@@ -36,5 +36,6 @@
     }
   ],
   "max_initial_wait_ms": 5000,
-  "spoken_enter_enabled": true
+  "spoken_enter_enabled": true,
+  "spoken_undo_enabled": true
 }
