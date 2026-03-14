@@ -157,6 +157,7 @@ def _load_vad() -> _SileroVAD | None:
         return None
 
 from hotkey_transcriber.keyboard_controller import KeyboardController, is_terminal_focused
+from hotkey_transcriber.spoken_text_actions import SpokenTextActionExecutor, _URL_INSERT_BUILTINS
 
 
 def normalize_language(language: str | None) -> str | None:
@@ -171,6 +172,7 @@ class SpeechRecorder:
                  channels: int, chunk_ms: int,
                  language: str | None, rec_mark: str,
                  spoken_enter_enabled: bool = False,
+                 spoken_text_action_executor: SpokenTextActionExecutor | None = None,
                  silence_timeout_ms: int = 1500,
                  max_initial_wait_ms: int | None = 5000):
         self.model = model
@@ -180,6 +182,7 @@ class SpeechRecorder:
         self.language = self._normalize_language(language)
         self.rec_mark = rec_mark
         self.spoken_enter_enabled = spoken_enter_enabled
+        self.spoken_text_action_executor = spoken_text_action_executor
         self._active_rec_mark = ""
 
         self._lock = threading.Lock()
@@ -237,6 +240,30 @@ class SpeechRecorder:
         if sys.platform == "linux":
             return "REC"
         return self.rec_mark
+
+    def _run_spoken_action(self, text: str) -> tuple[str, bool]:
+        if self.spoken_text_action_executor is None:
+            return text, False
+        match = self.spoken_text_action_executor.match(text)
+        if match is None:
+            return text, False
+        action, remainder = match
+        processed_remainder = remainder
+        should_submit = False
+        if action.builtin in _URL_INSERT_BUILTINS:
+            processed_remainder, should_submit = self._split_trailing_enter_command(remainder)
+        executed, consumed_remainder = self.spoken_text_action_executor.execute(
+            action,
+            processed_remainder,
+            submit_after=should_submit,
+        )
+        if not executed:
+            return text, False
+        if not action.paste_remainder:
+            return "", True
+        if consumed_remainder:
+            return "", True
+        return processed_remainder, True
 
     # ------------------------------------------------------------------ #
     # Audio callback (sounddevice internal thread)                         #
@@ -358,7 +385,8 @@ class SpeechRecorder:
             dot_stop.set()
             dot_thread.join()
 
-        output_text, should_press_enter = self._split_trailing_enter_command(full)
+        action_text, _ = self._run_spoken_action(full)
+        output_text, should_press_enter = self._split_trailing_enter_command(action_text)
 
         if output_text:
             self.keyb_c.paste(output_text)

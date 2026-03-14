@@ -4,11 +4,37 @@
     "modifier": "alt",
     "key": "r"
   },
-  "language": "auto",
-  "silence_timeout_ms": 500,
+  "language": "de",
+  "silence_timeout_ms": 1500,
   "notify_timeout_ms": 2000,
   "wake_word_resume_delay_ms": 1000,
   "wake_word_enabled": true,
   "wake_word_model": "hey chef",
-  "max_initial_wait_ms": 5000
+  "wake_word_script_actions_enabled": false,
+  "wake_word_script_actions": [
+    {
+      "wake_word_model": "hey chat",
+      "start_recording_after": true,
+      "delay_ms": 1200,
+      "builtin": "temporary_chat_firefox"
+    }
+  ],
+  "spoken_text_actions_enabled": true,
+  "spoken_text_actions": [
+    {
+      "triggers": [
+        "öffne chat",
+        "öffne den chat",
+        "chat öffnen",
+        "After the chat",
+        "Öfne den Jet"
+      ],
+      "paste_remainder": true,
+      "delay_ms": 1200,
+      "fuzzy_threshold": 0.78,
+      "builtin": "temporary_chat_firefox"
+    }
+  ],
+  "max_initial_wait_ms": 5000,
+  "spoken_enter_enabled": true
 }

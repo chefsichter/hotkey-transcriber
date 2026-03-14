@@ -41,9 +41,10 @@ def list_available_wake_word_models() -> list[str]:
 class WakeWordListener:
     """Listens for a wake word in the background and triggers a callback when detected."""
 
-    def __init__(self, callback, model_name="hey jarvis", threshold=0.5):
+    def __init__(self, callback, model_name="hey jarvis", threshold=0.5, model_names=None):
         self.callback = callback
         self.model_name = model_name
+        self.model_names = list(model_names or [model_name])
         self.threshold = threshold
         
         self._lock = threading.Lock()
@@ -55,23 +56,28 @@ class WakeWordListener:
         self._model = None
         self._cooldown_until = 0.0  # ignore detections until this timestamp
 
-    def _resolve_model(self):
-        normalized_name = _normalize_model_name(self.model_name)
+    def _resolve_models(self):
+        resolved = []
+        for model_name in self.model_names:
+            normalized_name = _normalize_model_name(model_name)
 
-        if _HAVE_WAKE_WORD:
-            model_info = openwakeword.models.get(normalized_name)
-            if model_info:
-                return normalized_name, model_info["model_path"]
+            if _HAVE_WAKE_WORD:
+                model_info = openwakeword.models.get(normalized_name)
+                if model_info:
+                    resolved.append((normalized_name, model_info["model_path"]))
+                    continue
 
-        for directory in _CUSTOM_WAKEWORD_DIRS:
-            model_path = directory / f"{normalized_name}.onnx"
-            if model_path.exists():
-                return normalized_name, str(model_path)
-
-        available = ", ".join(list_available_wake_word_models())
-        raise ValueError(
-            f"Unknown wake word model '{self.model_name}'. Available models: {available}"
-        )
+            for directory in _CUSTOM_WAKEWORD_DIRS:
+                model_path = directory / f"{normalized_name}.onnx"
+                if model_path.exists():
+                    resolved.append((normalized_name, str(model_path)))
+                    break
+            else:
+                available = ", ".join(list_available_wake_word_models())
+                raise ValueError(
+                    f"Unknown wake word model '{model_name}'. Available models: {available}"
+                )
+        return resolved
 
     @property
     def is_supported(self) -> bool:
@@ -96,11 +102,17 @@ class WakeWordListener:
     def _listen_loop(self):
         """Background thread loop that loads the model and processes audio chunks."""
         # Load model lazily in the thread to avoid blocking main thread at startup
-        print(f"Loading openwakeword model '{self.model_name}'...")
+        print(f"Loading openwakeword model(s) {self.model_names}...")
         try:
-            _, model_path = self._resolve_model()
-            self._model = Model(wakeword_model_paths=[model_path])
-            model_key = next(iter(self._model.models.keys()))
+            resolved_models = self._resolve_models()
+            self._model = Model(
+                wakeword_model_paths=[model_path for _, model_path in resolved_models]
+            )
+            key_to_name = {}
+            for normalized_name, model_path in resolved_models:
+                key_to_name[Path(model_path).stem.lower()] = normalized_name.replace("_", " ")
+            for model_key in self._model.models.keys():
+                key_to_name.setdefault(model_key.lower(), model_key.replace("_", " "))
         except Exception as e:
             print(f"Failed to load openwakeword model: {e}")
             self._running = False
@@ -130,19 +142,25 @@ class WakeWordListener:
             prediction = self._model.predict(audio_data_int16)
             
             # Predict returns a dict predicting scores for each model
-            score = prediction.get(model_key, 0.0)
-            
-            if score > self.threshold:
+            detected_key = None
+            detected_score = 0.0
+            for model_key, score in prediction.items():
+                if score > detected_score:
+                    detected_key = model_key
+                    detected_score = score
+
+            if detected_key is not None and detected_score > self.threshold:
                 # Ignore detections during cooldown period (after resume)
                 if time.time() < self._cooldown_until:
                     continue
                 
-                print(f"\nWake word detected! (score: {score:.2f})")
+                detected_name = key_to_name.get(detected_key.lower(), detected_key.replace("_", " "))
+                print(f"\nWake word detected: {detected_name}! (score: {detected_score:.2f})")
                 self._flush_queue()
                 self._model.reset()
                 self._cooldown_until = time.time() + 4.0
                 try:
-                    self.callback()
+                    self.callback(detected_name)
                 except Exception as e:
                     print(f"Error in wake word callback: {e}")
 

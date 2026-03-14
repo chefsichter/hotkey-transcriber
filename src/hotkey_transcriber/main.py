@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import signal
 import sys
@@ -7,7 +8,14 @@ from datetime import datetime
 from pathlib import Path
 
 from hotkey_transcriber import autostart
+from hotkey_transcriber.action_settings_rows import (
+    create_spoken_text_script_row,
+    create_wake_word_script_row,
+    serialize_spoken_text_script_rows,
+    serialize_wake_word_script_rows,
+)
 from hotkey_transcriber.backend_manager import resolve_backend
+from hotkey_transcriber.builtin_scripts import list_builtin_scripts
 from hotkey_transcriber.config.config_manger import load_config, save_config
 from hotkey_transcriber.object_loader import (
     load_keyboard_listener,
@@ -15,6 +23,11 @@ from hotkey_transcriber.object_loader import (
     load_speech_recorder,
 )
 from hotkey_transcriber.resources_manger import get_microphone_icon_path
+from hotkey_transcriber.spoken_text_actions import load_spoken_text_actions
+from hotkey_transcriber.wake_word_script_actions import (
+    WakeWordScriptActionExecutor,
+    load_wake_word_script_actions,
+)
 from hotkey_transcriber.speech_recorder import normalize_language
 from hotkey_transcriber.wake_word import (
     WakeWordListener,
@@ -40,6 +53,23 @@ WAKE_WORD_RESUME_DELAY_MS = config.get("wake_word_resume_delay_ms", 1000)
 WAKE_WORD_ENABLED = config.get("wake_word_enabled", False)
 WAKE_WORD_MODEL = config.get("wake_word_model", "hey jarvis")
 SPOKEN_ENTER_ENABLED = config.get("spoken_enter_enabled", False)
+SPOKEN_TEXT_ACTIONS_ENABLED = config.get("spoken_text_actions_enabled", True)
+SPOKEN_TEXT_ACTIONS = config.get("spoken_text_actions", [])
+WAKE_WORD_SCRIPT_ACTIONS_ENABLED = config.get("wake_word_script_actions_enabled", True)
+WAKE_WORD_SCRIPT_ACTIONS = config.get(
+    "wake_word_script_actions",
+    config.get(
+        "wake_word_actions",
+        [
+            {
+                "wake_word_model": "hey chat",
+                "builtin": "temporary_chat_firefox",
+                "start_recording_after": True,
+                "delay_ms": 1200,
+            },
+        ],
+    ),
+)
 DEFAULT_TRAY_TIP = "Live-Diktat"
 
 _DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
@@ -160,27 +190,39 @@ def _init_runtime():
         language=LANGUAGE,
         rec_mark=REC_MARK,
         spoken_enter_enabled=SPOKEN_ENTER_ENABLED,
+        spoken_text_actions_enabled=SPOKEN_TEXT_ACTIONS_ENABLED,
+        spoken_text_actions=SPOKEN_TEXT_ACTIONS,
         silence_timeout_ms=SILENCE_TIMEOUT_MS,
         max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
     )
     hotkey_config = config.get("hotkey", _DEFAULT_HOTKEY)
     hotkey = load_keyboard_listener(recorder, hotkey_config=hotkey_config)
 
-    # Callback activated by wake word detection
-    def on_wake_word_detected():
-        if not recorder.running:
-            ww_listener.pause()
-            recorder.start(
-                auto_stop=True,
-                silence_timeout_ms=SILENCE_TIMEOUT_MS,
-                max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
-            )
+    wake_word_script_action_map = load_wake_word_script_actions(WAKE_WORD_SCRIPT_ACTIONS)
+    wake_word_script_action_executor = WakeWordScriptActionExecutor(
+        actions=wake_word_script_action_map,
+        enabled=WAKE_WORD_SCRIPT_ACTIONS_ENABLED,
+    )
 
-    ww_listener = WakeWordListener(callback=on_wake_word_detected, model_name=WAKE_WORD_MODEL)
+    ww_listener = WakeWordListener(
+        callback=lambda _name=None: None,
+        model_name=WAKE_WORD_MODEL,
+        model_names=_configured_wake_word_models(),
+    )
     if WAKE_WORD_ENABLED:
         ww_listener.start()
 
-    return backend, device, compute_type, use_torch_whisper, recorder, hotkey, ww_listener, on_wake_word_detected
+    return (
+        backend,
+        device,
+        compute_type,
+        use_torch_whisper,
+        recorder,
+        hotkey,
+        ww_listener,
+        wake_word_script_action_map,
+        wake_word_script_action_executor,
+    )
 
 
 def _show_hotkey_dialog(parent=None):
@@ -257,11 +299,35 @@ def _build_tray_tooltip(hotkey_cfg: dict) -> str:
     return f"{DEFAULT_TRAY_TIP} | Hotkey: {_hotkey_label(hotkey_cfg)}"
 
 
+def _configured_wake_word_models():
+    available_models = set(list_available_wake_word_models())
+    models = []
+    primary_model = str(config.get("wake_word_model", WAKE_WORD_MODEL)).strip()
+    if primary_model:
+        models.append(primary_model)
+    if WAKE_WORD_SCRIPT_ACTIONS_ENABLED:
+        for action in WAKE_WORD_SCRIPT_ACTIONS:
+            model = str(action.get("wake_word_model", "")).strip()
+            if model and model in available_models and model not in models:
+                models.append(model)
+    return models
+
+
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     log_path = _setup_log_capture()
 
-    backend, device, compute_type, use_torch_whisper, recorder, hotkey, ww_listener, _on_wake_word = _init_runtime()
+    (
+        backend,
+        device,
+        compute_type,
+        use_torch_whisper,
+        recorder,
+        hotkey,
+        ww_listener,
+        wake_word_script_action_map,
+        wake_word_script_action_executor,
+    ) = _init_runtime()
     hotkey_ref = [hotkey]  # mutable container so the exit lambda always sees the current listener
 
     from PyQt5.QtCore import QMetaObject, Qt, pyqtSignal, QObject
@@ -274,7 +340,6 @@ def main():
         QComboBox,
         QDialog,
         QDialogButtonBox,
-
         QFormLayout,
         QLabel,
         QMenu,
@@ -283,6 +348,7 @@ def main():
         QSpinBox,
         QSystemTrayIcon,
         QVBoxLayout,
+        QWidget,
     )
 
     app = QApplication(sys.argv)
@@ -384,10 +450,44 @@ def main():
             ww_listener.resume()
 
     # Patch the wake word callback to show tray notifications
-    def _notifying_wake_word_callback():
+    def _notifying_wake_word_callback(detected_name=None):
         if not recorder.running:
             ww_listener.pause()
+            print(f"[wakeword] detected='{detected_name}'", flush=True)
+            action = None
+            if detected_name:
+                action = wake_word_script_action_executor.action_for_wake_word(detected_name)
+            if action is not None:
+                _tray_notify("Wake-Word-Skript", f"Wake Word '{detected_name}' erkannt…")
+                print(
+                    f"[wakeword] action trigger='{detected_name}' builtin='{action.builtin}' "
+                    f"command='{action.command}' start_recording_after={action.start_recording_after}",
+                    flush=True,
+                )
+                wake_word_script_action_executor.execute(action)
+                if action.start_recording_after:
+                    print(f"[wakeword] start recording after action '{detected_name}'", flush=True)
+                    recorder.start(
+                        auto_stop=True,
+                        silence_timeout_ms=SILENCE_TIMEOUT_MS,
+                        max_initial_wait_ms=MAX_INITIAL_WAIT_MS,
+                    )
+                return
+            if (
+                detected_name
+                and detected_name.strip().lower() in wake_word_script_action_map
+                and not wake_word_script_action_executor.enabled
+            ):
+                print(
+                    f"[wakeword] ignored script wake word '{detected_name}' because wake-word scripts are disabled",
+                    flush=True,
+                )
+                threading.Thread(target=_resume_wake_word_if_idle, daemon=True).start()
+                return
+            if detected_name:
+                print(f"[wakeword] no action mapping for '{detected_name}', using normal recording", flush=True)
             _tray_notify("Aufnahme gestartet", "Wake Word erkannt – Aufnahme läuft…")
+            print(f"[wakeword] start recording from wake word '{detected_name}'", flush=True)
             recorder.start(
                 auto_stop=True,
                 silence_timeout_ms=SILENCE_TIMEOUT_MS,
@@ -570,11 +670,12 @@ def main():
             save_config(config)
             if checked:
                 ww_listener.model_name = config.get("wake_word_model", ww_listener.model_name)
+                ww_listener.model_names = _configured_wake_word_models()
                 _refresh_wake_word_ui(ww_listener.model_name)
                 ww_listener.start()
                 _tray_notify(
                     "Wake Word aktiviert",
-                    f"Lauscht nach: '{ww_listener.model_name}'",
+                    f"Lauscht nach: {', '.join(ww_listener.model_names)}",
                 )
             else:
                 ww_listener.stop()
@@ -596,6 +697,7 @@ def main():
 
     def _on_show_settings():
         global SILENCE_TIMEOUT_MS, MAX_INITIAL_WAIT_MS, NOTIFY_TIMEOUT_MS, WAKE_WORD_RESUME_DELAY_MS
+        global SPOKEN_TEXT_ACTIONS, WAKE_WORD_SCRIPT_ACTIONS
 
         dlg = QDialog()
         dlg.setWindowTitle("Einstellungen")
@@ -645,11 +747,84 @@ def main():
             combo_ww.setCurrentText(current_model)
         form.addRow("Wake-Word Modell:", combo_ww)
 
+        builtin_scripts = list_builtin_scripts()
+        spoken_text_script_rows = []
+        spoken_text_scripts_widget = QWidget(dlg)
+        spoken_text_scripts_layout = QVBoxLayout(spoken_text_scripts_widget)
+        spoken_text_scripts_layout.setContentsMargins(0, 0, 0, 0)
+
+        def _add_spoken_text_script_row(initial=None):
+            row = create_spoken_text_script_row(
+                spoken_text_scripts_widget,
+                builtin_scripts,
+                initial=initial,
+            )
+            spoken_text_script_rows.append(row)
+            spoken_text_scripts_layout.addWidget(row["widget"])
+
+            def _remove_row():
+                spoken_text_script_rows.remove(row)
+                row["widget"].deleteLater()
+
+            row["remove"].clicked.connect(_remove_row)
+
+        for entry in config.get("spoken_text_actions", SPOKEN_TEXT_ACTIONS):
+            _add_spoken_text_script_row(entry)
+
+        add_spoken_text_script_btn = QPushButton("Text-Skript hinzufügen", dlg)
+        add_spoken_text_script_btn.clicked.connect(lambda: _add_spoken_text_script_row())
+        spoken_text_scripts_layout.addWidget(add_spoken_text_script_btn)
+        form.addRow("Text-Skripte:", spoken_text_scripts_widget)
+
+        wake_word_script_rows = []
+        wake_word_scripts_widget = QWidget(dlg)
+        wake_word_scripts_layout = QVBoxLayout(wake_word_scripts_widget)
+        wake_word_scripts_layout.setContentsMargins(0, 0, 0, 0)
+
+        def _add_wake_word_script_row(initial=None):
+            row = create_wake_word_script_row(
+                wake_word_scripts_widget,
+                _WW_MODELS,
+                builtin_scripts,
+                initial=initial,
+            )
+            wake_word_script_rows.append(row)
+            wake_word_scripts_layout.addWidget(row["widget"])
+
+            def _remove_row():
+                wake_word_script_rows.remove(row)
+                row["widget"].deleteLater()
+
+            row["remove"].clicked.connect(_remove_row)
+
+        for entry in config.get("wake_word_script_actions", WAKE_WORD_SCRIPT_ACTIONS):
+            _add_wake_word_script_row(entry)
+
+        add_wake_word_script_btn = QPushButton("Wake-Word-Skript hinzufügen", dlg)
+        add_wake_word_script_btn.clicked.connect(lambda: _add_wake_word_script_row())
+        wake_word_scripts_layout.addWidget(add_wake_word_script_btn)
+        form.addRow("Wake-Word-Skripte:", wake_word_scripts_widget)
+
         buttons = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=dlg
         )
         form.addRow(buttons)
-        buttons.accepted.connect(dlg.accept)
+        parsed_actions = {}
+
+        def _accept_settings():
+            try:
+                parsed_actions["spoken_text_actions"] = serialize_spoken_text_script_rows(
+                    spoken_text_script_rows
+                )
+                parsed_actions["wake_word_script_actions"] = serialize_wake_word_script_rows(
+                    wake_word_script_rows
+                )
+            except ValueError as exc:
+                _tray_notify("Einstellungsfehler", str(exc))
+                return
+            dlg.accept()
+
+        buttons.accepted.connect(_accept_settings)
         buttons.rejected.connect(dlg.reject)
 
         if dlg.exec_() != QDialog.Accepted:
@@ -665,15 +840,29 @@ def main():
         config["max_initial_wait_ms"] = MAX_INITIAL_WAIT_MS
         config["notify_timeout_ms"] = NOTIFY_TIMEOUT_MS
         config["wake_word_resume_delay_ms"] = WAKE_WORD_RESUME_DELAY_MS
+        SPOKEN_TEXT_ACTIONS = parsed_actions["spoken_text_actions"]
+        WAKE_WORD_SCRIPT_ACTIONS = parsed_actions["wake_word_script_actions"]
+        config["spoken_text_actions"] = SPOKEN_TEXT_ACTIONS
+        config["wake_word_script_actions"] = WAKE_WORD_SCRIPT_ACTIONS
 
         new_ww_enabled = cb_ww.isChecked()
         new_ww_model = combo_ww.currentText()
         previous_ww_model = ww_listener.model_name
+        previous_model_names = list(ww_listener.model_names)
         config["wake_word_enabled"] = new_ww_enabled
         config["wake_word_model"] = new_ww_model
         save_config(config)
         ww_listener.model_name = new_ww_model
+        ww_listener.model_names = _configured_wake_word_models()
         _refresh_wake_word_ui(new_ww_model)
+        recorder.spoken_text_action_executor.set_actions(
+            load_spoken_text_actions(SPOKEN_TEXT_ACTIONS)
+        )
+        wake_word_script_action_map.clear()
+        wake_word_script_action_map.update(
+            load_wake_word_script_actions(WAKE_WORD_SCRIPT_ACTIONS)
+        )
+        wake_word_script_action_executor.set_actions(wake_word_script_action_map)
 
         # Update _notify_timeout_ms used by _tray_notify
         nonlocal _notify_timeout_ms
@@ -684,23 +873,31 @@ def main():
         act_ww_toggle.setChecked(new_ww_enabled)
         act_ww_toggle.blockSignals(False)
 
+        act_wake_word_scripts.blockSignals(True)
+        act_wake_word_scripts.setEnabled(wake_word_script_action_executor.has_actions)
+        if wake_word_script_action_executor.has_actions:
+            act_wake_word_scripts.setChecked(config.get("wake_word_script_actions_enabled", True))
+        else:
+            act_wake_word_scripts.setChecked(False)
+        act_wake_word_scripts.blockSignals(False)
+
         # Apply wake word changes
         if new_ww_enabled and not ww_listener.running:
             ww_listener.start()
         elif not new_ww_enabled and ww_listener.running:
             ww_listener.stop()
-        elif ww_listener.running and new_ww_model != previous_ww_model:
+        elif ww_listener.running and (
+            new_ww_model != previous_ww_model
+            or ww_listener.model_names != previous_model_names
+        ):
             ww_listener.stop()
             ww_listener.start()
 
         _tray_notify("Einstellungen", "Einstellungen gespeichert.")
 
-    act_settings.triggered.connect(_on_show_settings)
-    menu.addAction(act_settings)
-    menu.addSeparator()
-    # ---------------------
+    text_actions_menu = menu.addMenu("Text-Sprachaktionen")
 
-    act_spoken_enter = QAction("Sprachkommando 'Enter'")
+    act_spoken_enter = QAction("Enter")
     act_spoken_enter.setCheckable(True)
     act_spoken_enter.setChecked(recorder.spoken_enter_enabled)
 
@@ -715,7 +912,40 @@ def main():
         )
 
     act_spoken_enter.toggled.connect(_on_toggle_spoken_enter)
-    menu.addAction(act_spoken_enter)
+    text_actions_menu.addAction(act_spoken_enter)
+
+    act_wake_word_scripts = QAction("Wake-Word-Skripte")
+    act_wake_word_scripts.setCheckable(True)
+    act_wake_word_scripts.setChecked(wake_word_script_action_executor.enabled)
+    if not wake_word_script_action_executor.has_actions:
+        act_wake_word_scripts.setEnabled(False)
+
+    def _on_toggle_wake_word_scripts(checked):
+        global WAKE_WORD_SCRIPT_ACTIONS_ENABLED
+        WAKE_WORD_SCRIPT_ACTIONS_ENABLED = checked
+        was_running = ww_listener.running
+        wake_word_script_action_executor.enabled = checked
+        config["wake_word_script_actions_enabled"] = checked
+        ww_listener.model_names = _configured_wake_word_models()
+        save_config(config)
+        if was_running:
+            ww_listener.stop()
+            ww_listener.start()
+        state_label = "aktiviert" if checked else "deaktiviert"
+        _tray_notify(
+            "Wake-Word-Skripte",
+            f"Wake-Word-Skripte {state_label}.",
+        )
+        print(
+            f"[wakeword] wake-word scripts {state_label}; active_models={ww_listener.model_names}",
+            flush=True,
+        )
+
+    act_wake_word_scripts.toggled.connect(_on_toggle_wake_word_scripts)
+    menu.addAction(act_wake_word_scripts)
+    act_settings.triggered.connect(_on_show_settings)
+    menu.addAction(act_settings)
+    menu.addSeparator()
 
     if autostart.is_supported():
         act_autostart = QAction("Beim Anmelden starten")

@@ -9,9 +9,13 @@ from faster_whisper import WhisperModel, download_model
 from huggingface_hub.errors import LocalEntryNotFoundError
 from huggingface_hub.utils import HfHubHTTPError
 
+from hotkey_transcriber.keyboard_listener import KeyBoardListener
 from hotkey_transcriber.keyboard_controller import KeyboardController
 from hotkey_transcriber.speech_recorder import SpeechRecorder
-from hotkey_transcriber.keyboard_listener import KeyBoardListener
+from hotkey_transcriber.spoken_text_actions import (
+    SpokenTextActionExecutor,
+    load_spoken_text_actions,
+)
 from hotkey_transcriber.wsl_backend import WslWhisperModel
 
 
@@ -166,6 +170,8 @@ def load_speech_recorder(
     language,
     rec_mark,
     spoken_enter_enabled=False,
+    spoken_text_actions_enabled=True,
+    spoken_text_actions=None,
     silence_timeout_ms=1500,
     max_initial_wait_ms=5000,
 ):
@@ -175,6 +181,10 @@ def load_speech_recorder(
     spinner_thread.start()
 
     keyboard_controller = KeyboardController(wait=wait_on_keyboard)
+    spoken_text_action_executor = SpokenTextActionExecutor(
+        actions=load_spoken_text_actions(spoken_text_actions),
+        enabled=spoken_text_actions_enabled,
+    )
     recorder = SpeechRecorder(
         model=model,
         keyboard_controller=keyboard_controller,
@@ -183,6 +193,7 @@ def load_speech_recorder(
         language=language,
         rec_mark=rec_mark,
         spoken_enter_enabled=spoken_enter_enabled,
+        spoken_text_action_executor=spoken_text_action_executor,
         silence_timeout_ms=silence_timeout_ms,
         max_initial_wait_ms=max_initial_wait_ms,
     )
