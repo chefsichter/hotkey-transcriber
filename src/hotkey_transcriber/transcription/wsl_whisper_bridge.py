@@ -1,4 +1,34 @@
-﻿import atexit
+"""
+WSL Whisper Bridge - Run Whisper with HIP/ROCm inside WSL from Windows via JSON-over-stdin/stdout IPC.
+
+Architecture:
+    ┌─────────────────────────────────────────┐
+    │  WslWhisperBridge                       │
+    │  ┌───────────────────────────────────┐  │
+    │  │  WslWhisperModel                  │  │
+    │  │  → writes server script to disk   │  │
+    │  │  → spawns wsl.exe python process  │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  JSON IPC (stdin/stdout)          │  │
+    │  │  → ping / transcribe / shutdown   │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  SERVER_SCRIPT (runs in WSL)      │  │
+    │  │  → faster-whisper + CTranslate2   │  │
+    │  │  → HIP/CUDA device auto-detect    │  │
+    │  └───────────────────────────────────┘  │
+    └─────────────────────────────────────────┘
+
+Usage:
+    from hotkey_transcriber.wsl_whisper_bridge import WslWhisperModel
+
+    model = WslWhisperModel(model_name="large-v3-turbo")
+    segments, _ = model.transcribe(audio_array, language="de")
+"""
+
+import atexit
+import contextlib
 import json
 import os
 import shlex
@@ -10,8 +40,7 @@ from pathlib import Path
 
 import numpy as np
 
-
-SERVER_SCRIPT = r'''
+SERVER_SCRIPT = r"""
 import argparse
 import json
 import os
@@ -50,7 +79,6 @@ def _snapshot_has_model_bin(model_path):
 
 
 def _repair_and_download(model_name, model_path):
-    # Remove broken snapshot and force a clean download.
     try:
         if os.path.isdir(model_path):
             shutil.rmtree(model_path, ignore_errors=True)
@@ -87,7 +115,6 @@ def main():
     try:
         model = WhisperModel(model_path, device=device, compute_type=compute_type, local_files_only=True)
     except RuntimeError:
-        # Final safety net for stale snapshots or backend issues.
         model_path = _repair_and_download(args.model, model_path)
         if not _snapshot_has_model_bin(model_path):
             raise RuntimeError(
@@ -129,22 +156,22 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+"""
 
 
 class _Segment:
-    def __init__(self, text):
+    def __init__(self, text: str):
         self.text = text
 
 
-def _win_to_wsl_path(path_str):
+def _win_to_wsl_path(path_str: str) -> str:
     path = Path(path_str).resolve()
     drive = path.drive[:-1].lower()
     rel = str(path).replace("\\", "/").split(":/", 1)[1]
     return f"/mnt/{drive}/{rel}"
 
 
-def _run_wsl(script):
+def _run_wsl(script: str) -> str:
     try:
         return subprocess.check_output(
             ["wsl.exe", "-e", "bash", "-lc", script],
@@ -161,7 +188,9 @@ def _run_wsl(script):
 
 
 class WslWhisperModel:
-    def __init__(self, model_name):
+    """Proxy model that transcribes audio via a faster-whisper server running in WSL."""
+
+    def __init__(self, model_name: str):
         self.model_name = model_name
         self._io_lock = threading.Lock()
         self._server = None
@@ -176,7 +205,7 @@ class WslWhisperModel:
         self._start_server()
         atexit.register(self.close)
 
-    def _ensure_wsl_backend(self, force=False):
+    def _ensure_wsl_backend(self, force: bool = False) -> None:
         marker = self._work_dir / "wsl_backend_ready"
         if marker.exists() and not force:
             return
@@ -192,7 +221,7 @@ class WslWhisperModel:
         _run_wsl(setup_cmd)
         marker.write_text("ok\n", encoding="utf-8")
 
-    def _start_server(self):
+    def _start_server(self) -> None:
         script_wsl = _win_to_wsl_path(str(self._script_path))
         script_arg = shlex.quote(script_wsl)
         model_arg = shlex.quote(self.model_name)
@@ -231,9 +260,11 @@ class WslWhisperModel:
         compute_type = reply.get("compute_type", "float32")
         print(f"WSL-Backend bereit (device={device}, compute_type={compute_type}).")
         if device == "cpu":
-            print("Hinweis: WSL-Backend laeuft ohne HIP-Beschleunigung (ctranslate2 ohne HIP-Support).")
+            print(
+                "Hinweis: WSL-Backend laeuft ohne HIP-Beschleunigung (ctranslate2 ohne HIP-Support)."
+            )
 
-    def _request(self, payload, timeout=120):
+    def _request(self, payload: dict, timeout: int = 120) -> dict:
         if not self._server or not self._server.stdin or not self._server.stdout:
             raise RuntimeError("WSL backend process is not running.")
 
@@ -244,7 +275,7 @@ class WslWhisperModel:
             self._server.stdin.flush()
 
             done = threading.Event()
-            holder = {"line": None}
+            holder: dict = {"line": None}
 
             def reader():
                 holder["line"] = self._server.stdout.readline()
@@ -264,8 +295,16 @@ class WslWhisperModel:
 
             return json.loads(raw)
 
-    def transcribe(self, audio, language=None, vad_filter=True, beam_size=1, best_of=1,
-                   temperature=0, condition_on_previous_text=False):
+    def transcribe(
+        self,
+        audio,
+        language=None,
+        vad_filter=True,
+        beam_size=1,
+        best_of=1,
+        temperature=0,
+        condition_on_previous_text=False,
+    ):
         with tempfile.NamedTemporaryFile(
             suffix=".wav",
             prefix="ht_",
@@ -302,21 +341,14 @@ class WslWhisperModel:
             segments = [_Segment(text=t) for t in reply.get("segments", [])]
             return iter(segments), {}
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 wav_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
-    def close(self):
+    def close(self) -> None:
         if not self._server:
             return
-        try:
+        with contextlib.suppress(Exception):
             self._request({"cmd": "shutdown"}, timeout=5)
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             self._server.terminate()
-        except Exception:
-            pass
         self._server = None
-

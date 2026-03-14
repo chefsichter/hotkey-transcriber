@@ -1,11 +1,11 @@
-import ctypes.util
 import ctypes
+import ctypes.util
 import platform
+import queue
 import re
 import sys
-import time
 import threading
-import queue
+import time
 from pathlib import Path
 
 import numpy as np
@@ -96,6 +96,7 @@ class _SileroVAD:
     def __init__(self, threshold: float = 0.5):
         self.threshold = threshold
         import importlib.util
+
         import onnxruntime
 
         # Locate the ONNX model bundled with faster-whisper without triggering
@@ -156,8 +157,11 @@ def _load_vad() -> _SileroVAD | None:
         print(f"Silero VAD nicht verfuegbar ({exc}). Auto-Stop deaktiviert.")
         return None
 
-from hotkey_transcriber.keyboard_controller import KeyboardController, is_terminal_focused
-from hotkey_transcriber.spoken_text_actions import SpokenTextActionExecutor, _URL_INSERT_BUILTINS
+from hotkey_transcriber.actions.spoken_text_actions import (
+    _URL_INSERT_BUILTINS,
+    SpokenTextActionExecutor,
+)
+from hotkey_transcriber.keyboard.keyboard_controller import KeyboardController, is_terminal_focused
 
 
 def normalize_language(language: str | None) -> str | None:

@@ -2,7 +2,6 @@ from hotkey_transcriber.builtin_scripts.browser_temporary_chat_firefox import (
     run_browser_temporary_chat_firefox,
 )
 
-
 _BUILTIN_SCRIPT_RUNNERS = {
     "temporary_chat_firefox": run_browser_temporary_chat_firefox,
 }

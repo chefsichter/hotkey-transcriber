@@ -1,7 +1,37 @@
+"""
+Action Settings UI Rows - Build and serialize PyQt5 row widgets for configuring
+text/wake-word script actions.
+
+Architecture:
+    ┌─────────────────────────────────────────┐
+    │  ActionSettingsUIRows                   │
+    │  ┌───────────────────────────────────┐  │
+    │  │  create_wake_word_script_row()    │  │
+    │  │  → QWidget row: model/mode/cmd    │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  create_spoken_text_script_row()  │  │
+    │  │  → QWidget row: trigger/mode/cmd  │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  serialize_*_rows()               │  │
+    │  │  → list of dicts for config.json  │  │
+    │  └───────────────────────────────────┘  │
+    └─────────────────────────────────────────┘
+
+Usage:
+    from hotkey_transcriber.gui.action_settings_ui_rows import (
+        create_spoken_text_script_row,
+        create_wake_word_script_row,
+        serialize_spoken_text_script_rows,
+        serialize_wake_word_script_rows,
+    )
+"""
+
 from pathlib import Path
 
 
-def _browse_script_path(parent):
+def _browse_script_path(parent) -> str:
     from PyQt5.QtWidgets import QFileDialog
 
     path, _ = QFileDialog.getOpenFileName(
@@ -20,7 +50,10 @@ def _sync_mode_widgets(mode, builtin, command, browse) -> None:
     browse.setEnabled(not is_builtin)
 
 
-def create_wake_word_script_row(parent, wake_word_models, builtin_scripts, initial=None):
+def create_wake_word_script_row(
+    parent, wake_word_models: list[str], builtin_scripts: list[str], initial=None
+) -> dict:
+    """Create a Qt5 row widget for configuring a wake-word-triggered script action."""
     from PyQt5.QtWidgets import (
         QCheckBox,
         QComboBox,
@@ -60,9 +93,7 @@ def create_wake_word_script_row(parent, wake_word_models, builtin_scripts, initi
     mode.currentTextChanged.connect(
         lambda _text: _sync_mode_widgets(mode, builtin, command, browse)
     )
-    browse.clicked.connect(
-        lambda: command.setText(_browse_script_path(row) or command.text())
-    )
+    browse.clicked.connect(lambda: command.setText(_browse_script_path(row) or command.text()))
 
     initial = initial or {}
     wake_word.setCurrentText(str(initial.get("wake_word_model", "")))
@@ -87,7 +118,8 @@ def create_wake_word_script_row(parent, wake_word_models, builtin_scripts, initi
     }
 
 
-def create_spoken_text_script_row(parent, builtin_scripts, initial=None):
+def create_spoken_text_script_row(parent, builtin_scripts: list[str], initial=None) -> dict:
+    """Create a Qt5 row widget for configuring a spoken-text-triggered script action."""
     from PyQt5.QtWidgets import (
         QCheckBox,
         QComboBox,
@@ -127,24 +159,13 @@ def create_spoken_text_script_row(parent, builtin_scripts, initial=None):
     fuzzy_threshold.setValue(0.78)
 
     remove = QPushButton("Entfernen", row)
-    for widget in (
-        trigger,
-        mode,
-        builtin,
-        command,
-        browse,
-        paste_remainder,
-        fuzzy_threshold,
-        remove,
-    ):
+    for widget in (trigger, mode, builtin, command, browse, paste_remainder, fuzzy_threshold, remove):
         layout.addWidget(widget)
 
     mode.currentTextChanged.connect(
         lambda _text: _sync_mode_widgets(mode, builtin, command, browse)
     )
-    browse.clicked.connect(
-        lambda: command.setText(_browse_script_path(row) or command.text())
-    )
+    browse.clicked.connect(lambda: command.setText(_browse_script_path(row) or command.text()))
 
     initial = initial or {}
     triggers = initial.get("triggers")
@@ -175,13 +196,14 @@ def create_spoken_text_script_row(parent, builtin_scripts, initial=None):
     }
 
 
-def serialize_wake_word_script_rows(rows):
+def serialize_wake_word_script_rows(rows: list[dict]) -> list[dict]:
+    """Serialize wake-word-script UI rows to a list of config dicts."""
     entries = []
     for row in rows:
         wake_word_model = row["wake_word"].currentText().strip()
         if not wake_word_model:
             continue
-        entry = {
+        entry: dict = {
             "wake_word_model": wake_word_model,
             "start_recording_after": row["start_recording"].isChecked(),
             "delay_ms": 1200,
@@ -200,17 +222,14 @@ def serialize_wake_word_script_rows(rows):
     return entries
 
 
-def serialize_spoken_text_script_rows(rows):
+def serialize_spoken_text_script_rows(rows: list[dict]) -> list[dict]:
+    """Serialize spoken-text-script UI rows to a list of config dicts."""
     entries = []
     for row in rows:
-        triggers = [
-            part.strip()
-            for part in row["trigger"].text().split(",")
-            if part.strip()
-        ]
+        triggers = [part.strip() for part in row["trigger"].text().split(",") if part.strip()]
         if not triggers:
             continue
-        entry = {
+        entry: dict = {
             "triggers": triggers,
             "paste_remainder": row["paste_remainder"].isChecked(),
             "delay_ms": 1200,

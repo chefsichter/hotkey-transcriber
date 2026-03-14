@@ -1,7 +1,6 @@
 import subprocess
 from urllib.parse import urlencode
 
-
 _TEMPORARY_CHAT_URL = "https://chatgpt.com/?temporary-chat=true"
 
 

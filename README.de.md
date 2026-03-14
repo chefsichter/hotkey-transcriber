@@ -15,6 +15,8 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) in Echtzeit trans
 - [🪟 Programm starten](#programm-starten)
 - [🎉 Nutzung](#nutzung)
 - [⚙️ Konfiguration](#konfiguration)
+- [🏗️ Architektur](#architektur)
+- [🧑‍💻 Entwickler-Setup](#entwickler-setup)
 - [💡 Tipps & Tricks](#tipps--tricks)
 - [📄 Mitwirken](#mitwirken)
 - [📜 Lizenz](#lizenz)
@@ -237,9 +239,72 @@ Alternative fuer AMD-GPUs unter Windows, bei denen CTranslate2s HIP-Kernel funkt
 ## ⚙️ Konfiguration
 Standardwerte werden in einer JSON-Datei unter `~/.config/hotkey-transcriber/config.json` gespeichert. Einstellungen wie Modellgröße, Intervall und Erkennungssprache werden automatisch beibehalten.
 
-## 💡 Tipps & Tricks
-- Verwende kurze Intervalle (z.B. **0.5s**) für flüssiges Diktat.
-- Wähle leichtere Modelle (`tiny` oder `base`) auf schwacher Hardware.
+## 🏗️ Architektur
+
+Die Anwendung ist eine PyQt5-Tray-App. Der Quellcode liegt unter `src/hotkey_transcriber/` und ist in thematische Unterpakete gegliedert:
+
+```
+src/hotkey_transcriber/
+├── main.py                         # Einstiegspunkt: Tray-Icon, Menüs, Signal-Verkabelung
+├── app_log_capture.py              # In-Memory-Log-Ringpuffer (Tray-Log-Fenster)
+├── speech_recorder.py              # Audio-Aufnahme-Schleife + VAD + Whisper-Dispatch
+├── resource_path_resolver.py       # Mikrofon-Icon-Pfad (Paket oder Dateisystem)
+├── autostart.py                    # OS-Autostart-Registrierung (Linux/Windows)
+│
+├── config/
+│   └── config_manager.py           # load_config / save_config (JSON)
+│
+├── transcription/
+│   ├── compute_device_detector.py  # CUDA / HIP / CPU-Erkennung via CTranslate2
+│   ├── whisper_backend_selector.py # Backend-Auswahl aus Config + Umgebung
+│   ├── model_and_recorder_factory.py  # Instanziert Modell, Recorder, Keyboard-Listener
+│   ├── torch_whisper_fallback_backend.py  # openai-whisper-Wrapper (AMD/Windows)
+│   └── wsl_whisper_bridge.py       # JSON-IPC-Bridge zu faster-whisper in WSL2
+│
+├── keyboard/
+│   ├── keyboard_listener.py        # Win32- / evdev-Hotkey-Erkennung
+│   ├── keyboard_controller.py      # Textausgabe (pyautogui / ydotool)
+│   └── hotkey_change_dialog.py     # Qt5-Hotkey-Erfassungsdialog
+│
+├── wake_word/
+│   ├── wake_word_listener.py       # openwakeword-Hintergrund-Listener-Thread
+│   └── wake_word_script_actions.py # Wake-Word → Shell-Skript-Aktionszuordnung
+│
+├── actions/
+│   ├── spoken_text_actions.py      # Gesprochener-Text-Trigger + Ausführung
+│   └── action_settings_ui_rows.py  # Qt5-Einstellungszeilen für Skript-Aktionen
+│
+└── builtin_scripts/                # Mitgelieferte Shell-/Python-Hilfsskripte
+```
+
+Vollstaendige Event-Flow- und Backend-Auswahldiagramme: [docs/architecture.md](docs/architecture.md)
+
+## 🧑‍💻 Entwickler-Setup
+
+```bash
+# 1. Klonen und venv anlegen
+git clone https://github.com/chefsichter/hotkey-transcriber
+cd hotkey-transcriber
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# 2. Mit Dev-Extras installieren
+pip install -e ".[dev]"
+
+# 3. Pre-commit-Hooks einrichten
+pre-commit install
+
+# 4. Tests ausfuehren
+pytest
+
+# 5. Formatieren, Linten, Typen pruefen
+black src tests
+ruff check src tests
+mypy src
+```
+
+> Die `dev`-Extras enthalten `pytest`, `pytest-cov`, `black`, `ruff` und `mypy`.
+> Alle Tool-Einstellungen befinden sich in `pyproject.toml`.
 
 ## 📄 Mitwirken
 - Fehler melden via Issues

@@ -12,9 +12,11 @@ With Hotkey Transcriber you can transcribe in real time (Speech-To-Text) using a
 - [✨ Features](#features)
 - [🛠️ Requirements](#requirements)
 - [⚙️ Installation](#installation)
-- [🪟 Start program](#start program)
+- [🪟 Start program](#start-program)
 - [🎉 Usage](#usage)
 - [⚙️ Configuration](#configuration)
+- [🏗️ Architecture](#architecture)
+- [🧑‍💻 Developer setup](#developer-setup)
 - [💡 Tips &amp; tricks](#tips--tricks)
 - [📄 Contribute](#contribute)
 - [📜 License](#license)
@@ -237,9 +239,72 @@ Alternative for AMD GPUs on Windows where CTranslate2's HIP kernels work (e.g. R
 ## ⚙️ Configuration
 Default values are saved in a JSON file under `~/.config/hotkey-transcriber/config.json`. Settings such as model size, interval and detection language are automatically retained.
 
-## 💡 Tips &amp; tricks
-- Use short intervals (e.g. **0.5s**) for smooth dictation.
-- Choose lighter models (`tiny` or `base`) on weak hardware.
+## 🏗️ Architecture
+
+The application is a PyQt5 system-tray app. Source lives under `src/hotkey_transcriber/` and is organized into focused subpackages:
+
+```
+src/hotkey_transcriber/
+├── main.py                         # Entry point: tray icon, menus, signal wiring
+├── app_log_capture.py              # In-memory log ring-buffer (tray log window)
+├── speech_recorder.py              # Audio capture loop + VAD + Whisper dispatch
+├── resource_path_resolver.py       # Microphone icon path (package or filesystem)
+├── autostart.py                    # OS autostart registration (Linux/Windows)
+│
+├── config/
+│   └── config_manager.py           # load_config / save_config (JSON)
+│
+├── transcription/
+│   ├── compute_device_detector.py  # CUDA / HIP / CPU detection via CTranslate2
+│   ├── whisper_backend_selector.py # Resolves backend from config + environment
+│   ├── model_and_recorder_factory.py  # Instantiates model, recorder, keyboard listener
+│   ├── torch_whisper_fallback_backend.py  # openai-whisper wrapper (AMD/Windows)
+│   └── wsl_whisper_bridge.py       # JSON-IPC bridge to faster-whisper in WSL2
+│
+├── keyboard/
+│   ├── keyboard_listener.py        # Win32 / evdev hotkey detection
+│   ├── keyboard_controller.py      # Text output (pyautogui / ydotool)
+│   └── hotkey_change_dialog.py     # Qt5 hotkey-capture dialog
+│
+├── wake_word/
+│   ├── wake_word_listener.py       # openwakeword background listener thread
+│   └── wake_word_script_actions.py # Wake-word → shell-script action mapping
+│
+├── actions/
+│   ├── spoken_text_actions.py      # Spoken-text trigger matching + execution
+│   └── action_settings_ui_rows.py  # Qt5 settings rows for script actions
+│
+└── builtin_scripts/                # Bundled shell/Python helper scripts
+```
+
+See [docs/architecture.md](docs/architecture.md) for the full event-flow and backend-selection diagrams.
+
+## 🧑‍💻 Developer setup
+
+```bash
+# 1. Clone and create a venv
+git clone https://github.com/chefsichter/hotkey-transcriber
+cd hotkey-transcriber
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# 2. Install with dev extras
+pip install -e ".[dev]"
+
+# 3. Install pre-commit hooks
+pre-commit install
+
+# 4. Run the test suite
+pytest
+
+# 5. Format, lint, type-check
+black src tests
+ruff check src tests
+mypy src
+```
+
+> The `dev` extras include `pytest`, `pytest-cov`, `black`, `ruff`, and `mypy`.
+> All tool settings are in `pyproject.toml`.
 
 ## 📄 Contribute
 - Report bugs via Issues

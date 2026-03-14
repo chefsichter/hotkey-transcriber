@@ -1,8 +1,26 @@
-"""Torch-based Whisper backend using openai-whisper.
+"""
+Torch Whisper Fallback Backend - OpenAI-Whisper (PyTorch) backend for AMD GPUs where CTranslate2/HIP is incompatible.
 
-Used as a drop-in replacement for faster_whisper.WhisperModel when
-CTranslate2's HIP kernels are incompatible with the current GPU
-(e.g. gfx1150 / RDNA 4 on Windows ROCm).
+Architecture:
+    ┌─────────────────────────────────────────┐
+    │  TorchWhisperFallbackBackend            │
+    │  ┌───────────────────────────────────┐  │
+    │  │  TorchWhisperModel                │  │
+    │  │  → wraps openai-whisper           │  │
+    │  │  → matches faster_whisper API     │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  transcribe(audio, ...)           │  │
+    │  │  → pads/trims 30s                 │  │
+    │  │  → returns iter(_Segment), info   │  │
+    │  └───────────────────────────────────┘  │
+    └─────────────────────────────────────────┘
+
+Usage:
+    from hotkey_transcriber.torch_whisper_fallback_backend import TorchWhisperModel
+
+    model = TorchWhisperModel(model_size="large-v3-turbo", device="cuda")
+    segments, info = model.transcribe(audio_array, language="de")
 """
 
 import os
@@ -18,31 +36,34 @@ import whisper
 
 class _Segment:
     """Minimal segment object matching faster_whisper's interface."""
+
     __slots__ = ("text", "start", "end")
 
-    def __init__(self, text, start=0.0, end=0.0):
+    def __init__(self, text: str, start: float = 0.0, end: float = 0.0):
         self.text = text
         self.start = start
         self.end = end
 
 
 # Mapping from faster-whisper model names to openai-whisper names.
-_MODEL_NAME_MAP = {
+_MODEL_NAME_MAP: dict[str, str] = {
     "large-v3-turbo": "turbo",
 }
 
 # Models only available in CTranslate2/faster-whisper format.
-_CT2_ONLY_MODELS = frozenset({
-    "distil-small.en",
-    "distil-medium.en",
-    "distil-large-v3",
-})
+_CT2_ONLY_MODELS: frozenset[str] = frozenset(
+    {
+        "distil-small.en",
+        "distil-medium.en",
+        "distil-large-v3",
+    }
+)
 
 
 class TorchWhisperModel:
     """Wraps openai-whisper to provide the faster_whisper.WhisperModel interface."""
 
-    def __init__(self, model_size, device="cuda", compute_type="float32"):
+    def __init__(self, model_size: str, device: str = "cuda", compute_type: str = "float32"):
         if model_size in _CT2_ONLY_MODELS or "/" in model_size:
             raise ValueError(
                 f"Modell '{model_size}' ist nur im CTranslate2-Format verfuegbar "
@@ -54,12 +75,19 @@ class TorchWhisperModel:
         self._fp16 = device != "cpu" and "float16" in compute_type
         self._model = whisper.load_model(ow_name, device=device)
 
-    def transcribe(self, audio, language=None, vad_filter=True,
-                   beam_size=1, best_of=1, temperature=0,
-                   condition_on_previous_text=False, **kwargs):
+    def transcribe(
+        self,
+        audio,
+        language=None,
+        vad_filter=True,
+        beam_size=1,
+        best_of=1,
+        temperature=0,
+        condition_on_previous_text=False,
+        **kwargs,
+    ):
         if isinstance(audio, np.ndarray):
             audio = audio.astype(np.float32)
-            # Pad/trim to 30 s as expected by openai-whisper
             audio = whisper.pad_or_trim(torch.from_numpy(audio)).numpy()
 
         result = self._model.transcribe(

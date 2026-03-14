@@ -5,7 +5,6 @@ import shutil
 import sys
 from pathlib import Path
 
-
 WINDOWS_RUN_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 WINDOWS_RUN_VALUE = "HotkeyTranscriber"
 LINUX_AUTOSTART_FILE = "hotkey-transcriber.desktop"

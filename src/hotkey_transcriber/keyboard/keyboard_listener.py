@@ -1,7 +1,6 @@
 import sys
 import threading
 
-
 if sys.platform == 'win32':
     import ctypes
     import ctypes.wintypes

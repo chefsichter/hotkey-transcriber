@@ -1,8 +1,8 @@
-from difflib import SequenceMatcher
 import shlex
 import subprocess
 import time
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 from hotkey_transcriber.builtin_scripts import execute_builtin_script
 

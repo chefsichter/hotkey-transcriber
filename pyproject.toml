@@ -8,7 +8,7 @@ version = "0.1.4"
 description = "Live-Diktat-Tool mit Whisper"
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "faster-whisper",
     "sounddevice",
@@ -26,13 +26,20 @@ dependencies = [
 
 [project.optional-dependencies]
 amd = ["openai-whisper"]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "black>=24",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
 
 [project.scripts]
-hotkey-transcriber = "hotkey_transcriber.main:main"  # ⇢ `hotkey-transcriber` ist jetzt ein Konsolenbefehl
+hotkey-transcriber = "hotkey_transcriber.main:main"
 hotkey-transcriber-autostart = "hotkey_transcriber.autostart:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}      
+package-dir = {"" = "src"}
 include-package-data = true
 
 [tool.setuptools.packages.find]
@@ -44,6 +51,32 @@ hotkey_transcriber = ["resources/**/*"]
 [tool.setuptools.data-files]
 "share/applications" = ["desktop_files/linux/hotkey-transcriber.desktop"]
 "share/icons/hicolor/256x256/apps" = ["src/hotkey_transcriber/resources/icon/microphone.png"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
 
 [tool.briefcase]
 project_name = "hotkey-transcriber"

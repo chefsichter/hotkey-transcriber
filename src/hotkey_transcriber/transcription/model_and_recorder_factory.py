@@ -1,4 +1,36 @@
-﻿import itertools
+"""
+Model and Recorder Factory - Download/initialize Whisper models and assemble the SpeechRecorder with all dependencies.
+
+Architecture:
+    ┌─────────────────────────────────────────┐
+    │  ModelAndRecorderFactory                │
+    │  ┌───────────────────────────────────┐  │
+    │  │  load_model(size, device, ...)    │  │
+    │  │  → downloads / repairs model      │  │
+    │  │  → returns WhisperModel variant   │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  load_speech_recorder(model, ...) │  │
+    │  │  → KeyboardController             │  │
+    │  │  → SpokenTextActionExecutor       │  │
+    │  │  → SpeechRecorder                 │  │
+    │  └──────────────┬────────────────────┘  │
+    │  ┌──────────────▼────────────────────┐  │
+    │  │  load_keyboard_listener(recorder) │  │
+    │  │  → KeyBoardListener (started)     │  │
+    │  └───────────────────────────────────┘  │
+    └─────────────────────────────────────────┘
+
+Usage:
+    from hotkey_transcriber.model_and_recorder_factory import load_model, load_speech_recorder, load_keyboard_listener
+
+    model = load_model(size="large-v3-turbo", device="cuda", compute_type="float16")
+    recorder = load_speech_recorder(model=model, ...)
+    hotkey = load_keyboard_listener(recorder, hotkey_config={"modifier": "alt", "key": "r"})
+"""
+
+import contextlib
+import itertools
 import os
 import shutil
 import threading
@@ -9,17 +41,17 @@ from faster_whisper import WhisperModel, download_model
 from huggingface_hub.errors import LocalEntryNotFoundError
 from huggingface_hub.utils import HfHubHTTPError
 
-from hotkey_transcriber.keyboard_listener import KeyBoardListener
-from hotkey_transcriber.keyboard_controller import KeyboardController
-from hotkey_transcriber.speech_recorder import SpeechRecorder
-from hotkey_transcriber.spoken_text_actions import (
+from hotkey_transcriber.actions.spoken_text_actions import (
     SpokenTextActionExecutor,
     load_spoken_text_actions,
 )
-from hotkey_transcriber.wsl_backend import WslWhisperModel
+from hotkey_transcriber.keyboard.keyboard_controller import KeyboardController
+from hotkey_transcriber.keyboard.keyboard_listener import KeyBoardListener
+from hotkey_transcriber.speech_recorder import SpeechRecorder
+from hotkey_transcriber.transcription.wsl_whisper_bridge import WslWhisperModel
 
 
-def _spinner(message, stop_event):
+def _spinner(message: str, stop_event: threading.Event) -> None:
     for char in itertools.cycle(["|", "/", "-", "\\"]):
         if stop_event.is_set():
             break
@@ -28,11 +60,11 @@ def _spinner(message, stop_event):
     print(" " * (len(message) + 2), end="\r", flush=True)
 
 
-def _snapshot_has_model_bin(model_path):
+def _snapshot_has_model_bin(model_path: str) -> bool:
     return os.path.isfile(os.path.join(model_path, "model.bin"))
 
 
-def _cleanup_stale_hf_state(model_path):
+def _cleanup_stale_hf_state(model_path: str) -> None:
     """Remove stale partially-downloaded files and stale lock files."""
     try:
         model_dir = Path(model_path).resolve().parent.parent
@@ -45,17 +77,15 @@ def _cleanup_stale_hf_state(model_path):
     blobs_dir = model_dir / "blobs"
     if blobs_dir.is_dir():
         for incomplete_file in blobs_dir.glob("*.incomplete"):
-            try:
+            with contextlib.suppress(Exception):
                 incomplete_file.unlink(missing_ok=True)
-            except Exception:
-                pass
 
     locks_dir = model_dir / ".locks"
     if locks_dir.is_dir():
         shutil.rmtree(locks_dir, ignore_errors=True)
 
 
-def _repair_and_download(size, model_path, cache_dir=None):
+def _repair_and_download(size: str, model_path: str, cache_dir=None) -> str:
     _cleanup_stale_hf_state(model_path)
     try:
         if os.path.isdir(model_path):
@@ -70,8 +100,15 @@ def _repair_and_download(size, model_path, cache_dir=None):
     )
 
 
-def load_model(size, device, compute_type, cache_dir=None, backend="native",
-               use_torch_whisper=False):
+def load_model(
+    size: str,
+    device: str,
+    compute_type: str,
+    cache_dir=None,
+    backend: str = "native",
+    use_torch_whisper: bool = False,
+):
+    """Download (if needed) and load a Whisper model. Returns a model object."""
     if backend == "wsl_amd":
         try:
             return WslWhisperModel(model_name=size)
@@ -119,12 +156,12 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native",
             download_root=cache_dir,
             local_files_only=True,
         )
-    except RuntimeError:
+    except RuntimeError as exc:
         model_path = _repair_and_download(size=size, model_path=model_path, cache_dir=cache_dir)
         if not _snapshot_has_model_bin(model_path):
             raise RuntimeError(
                 f"Model '{size}' enthaelt kein model.bin und ist nicht als faster-whisper/ctranslate2 Modell verfuegbar."
-            )
+            ) from exc
         model = WhisperModel(
             model_size_or_path=model_path,
             device=device,
@@ -140,8 +177,8 @@ def load_model(size, device, compute_type, cache_dir=None, backend="native",
     return model
 
 
-def _load_torch_whisper(size, device, compute_type):
-    from hotkey_transcriber.torch_whisper_backend import TorchWhisperModel
+def _load_torch_whisper(size: str, device: str, compute_type: str):
+    from hotkey_transcriber.transcription.torch_whisper_fallback_backend import TorchWhisperModel
 
     print(
         "AMD-GPU erkannt – verwende torch-Backend (openai-whisper) "
@@ -164,17 +201,18 @@ def _load_torch_whisper(size, device, compute_type):
 
 def load_speech_recorder(
     model,
-    wait_on_keyboard,
-    channels,
-    chunk_ms,
-    language,
-    rec_mark,
-    spoken_enter_enabled=False,
-    spoken_text_actions_enabled=True,
-    spoken_text_actions=None,
-    silence_timeout_ms=1500,
-    max_initial_wait_ms=5000,
-):
+    wait_on_keyboard: float,
+    channels: int,
+    chunk_ms: int,
+    language: str | None,
+    rec_mark: str,
+    spoken_enter_enabled: bool = False,
+    spoken_text_actions_enabled: bool = True,
+    spoken_text_actions: list | None = None,
+    silence_timeout_ms: int = 1500,
+    max_initial_wait_ms: int = 5000,
+) -> SpeechRecorder:
+    """Build and return a fully configured SpeechRecorder instance."""
     message = "Lade SpeechRecorder…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
@@ -204,7 +242,10 @@ def load_speech_recorder(
     return recorder
 
 
-def load_keyboard_listener(recorder, hotkey_config: dict = None):
+def load_keyboard_listener(
+    recorder: SpeechRecorder, hotkey_config: dict | None = None
+) -> KeyBoardListener:
+    """Build, start, and return a KeyBoardListener bound to the given recorder."""
     message = "Lade KeyBoardListener…"
     stop_event = threading.Event()
     spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
