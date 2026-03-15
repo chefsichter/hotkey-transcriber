@@ -25,9 +25,10 @@ Usage:
 
 import os
 
-# Keep ROCm AOTriton experimental path opt-in.
-# Enabling it by default can break torch startup on some Windows AMD setups.
-os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "0")
+# Enable ROCm AOTriton experimental flash/mem-efficient attention.
+# The original startup crash was caused by PyQt5 DLL conflicts (now fixed),
+# not AOTriton - enabling this gives ~2x faster inference on AMD iGPUs.
+os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "1")
 
 import numpy as np
 import torch
