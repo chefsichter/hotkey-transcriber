@@ -25,9 +25,9 @@ Usage:
 
 import os
 
-# Enable experimental ROCm aotriton attention before torch import
-# to avoid UserWarning spam and unlock flash/mem-efficient attention.
-os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "1")
+# Keep ROCm AOTriton experimental path opt-in.
+# Enabling it by default can break torch startup on some Windows AMD setups.
+os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "0")
 
 import numpy as np
 import torch

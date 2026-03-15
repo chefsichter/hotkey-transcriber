@@ -2,7 +2,6 @@ import signal
 
 from hotkey_transcriber.app_log_capture import setup_log_capture
 from hotkey_transcriber.config.config_manager import load_config
-from hotkey_transcriber.gui.tray_app import _DEFAULT_HOTKEY, TrayApp
 from hotkey_transcriber.speech_recorder import normalize_language
 from hotkey_transcriber.transcription.model_and_recorder_factory import (
     load_keyboard_listener,
@@ -18,6 +17,8 @@ from hotkey_transcriber.wake_word.wake_word_script_actions import (
     WakeWordScriptActionExecutor,
     load_wake_word_script_actions,
 )
+
+_DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
 
 
 def _init_runtime(config: dict):
@@ -109,6 +110,8 @@ def main() -> None:
     config = load_config()
     log_path = setup_log_capture()
 
+    # Import PyQt5 (via tray_app) AFTER torch is loaded in _init_runtime.
+    # PyQt5 loads DLLs that conflict with ROCm initialization when imported first.
     (
         backend,
         device,
@@ -120,6 +123,8 @@ def main() -> None:
         wake_word_script_action_map,
         wake_word_script_action_executor,
     ) = _init_runtime(config)
+
+    from hotkey_transcriber.gui.tray_app import TrayApp  # noqa: PLC0415
 
     tray_app = TrayApp(
         config=config,

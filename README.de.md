@@ -12,6 +12,7 @@ Mit Hotkey Transcriber kannst du per Tastenkombination (Alt+R) in Echtzeit trans
 - [✨ Features](#features)
 - [🛠️ Voraussetzungen](#voraussetzungen)
 - [⚙️ Installation](#installation)
+- [🔄 Update](#update)
 - [🪟 Programm starten](#programm-starten)
 - [🎉 Nutzung](#nutzung)
 - [⚙️ Konfiguration](#konfiguration)
@@ -88,6 +89,37 @@ Deinstallation:
 - Windows (PowerShell):
   ```powershell
   .\tools\uninstall_windows.ps1
+  ```
+
+## 🔄 Update
+
+Updates haengen vom Installationsweg ab:
+
+- **Windows/Linux ueber Installer (ohne `-AmdGpu`, nutzt pipx lokal aus dem Repo):**
+  ```powershell
+  git pull
+  .\tools\install_windows.ps1 -Autostart ask
+  ```
+  Linux:
+  ```bash
+  git pull
+  bash ./tools/install_linux.sh --autostart=ask
+  ```
+
+- **Manuell via `pipx install git+https://...`:**
+  ```powershell
+  pipx upgrade hotkey-transcriber
+  ```
+
+- **AMD-GPU mit `-AmdGpu` (venv im Repo):**
+  Schnelles Code-Update (behaelt ROCm/PyTorch-Stack):
+  ```powershell
+  git pull
+  .\.venv\Scripts\python.exe -m pip install -e .
+  ```
+  Voller AMD-Installer nur bei Basis-Aenderungen (ROCm/PyTorch/Python) oder defekter venv:
+  ```powershell
+  .\tools\install_windows.ps1 -AmdGpu -Autostart ask
   ```
 
 ### 🧰 Manuelle Installation (pipx / git)

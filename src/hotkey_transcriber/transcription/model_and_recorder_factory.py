@@ -37,7 +37,6 @@ import threading
 import time
 from pathlib import Path
 
-from faster_whisper import WhisperModel, download_model
 from huggingface_hub.errors import LocalEntryNotFoundError
 from huggingface_hub.utils import HfHubHTTPError
 
@@ -48,7 +47,13 @@ from hotkey_transcriber.actions.spoken_text_actions import (
 from hotkey_transcriber.keyboard.keyboard_controller import KeyboardController
 from hotkey_transcriber.keyboard.keyboard_listener import KeyBoardListener
 from hotkey_transcriber.speech_recorder import SpeechRecorder
-from hotkey_transcriber.transcription.wsl_whisper_bridge import WslWhisperModel
+
+
+def _faster_whisper_api():
+    """Import faster_whisper lazily so AMD/torch startup does not require ctranslate2 DLLs."""
+    from faster_whisper import WhisperModel, download_model
+
+    return WhisperModel, download_model
 
 
 def _spinner(message: str, stop_event: threading.Event) -> None:
@@ -86,6 +91,7 @@ def _cleanup_stale_hf_state(model_path: str) -> None:
 
 
 def _repair_and_download(size: str, model_path: str, cache_dir=None) -> str:
+    _, download_model = _faster_whisper_api()
     _cleanup_stale_hf_state(model_path)
     try:
         if os.path.isdir(model_path):
@@ -111,6 +117,8 @@ def load_model(
     """Download (if needed) and load a Whisper model. Returns a model object."""
     if backend == "wsl_amd":
         try:
+            from hotkey_transcriber.transcription.wsl_whisper_bridge import WslWhisperModel
+
             return WslWhisperModel(model_name=size)
         except Exception as exc:
             print(f"WSL-Backend fehlgeschlagen ({exc}). Fallback auf CPU-Backend.")
@@ -119,6 +127,8 @@ def load_model(
 
     if use_torch_whisper:
         return _load_torch_whisper(size, device, compute_type)
+
+    WhisperModel, download_model = _faster_whisper_api()
 
     try:
         model_path = download_model(

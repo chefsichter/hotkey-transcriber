@@ -169,6 +169,15 @@ def resolve_backend(config: dict) -> dict:
             "compute_type": "float32",
         }
 
+    if selected == "native" and is_windows_amd_gpu():
+        print("🎮 AMD GPU unter Windows erkannt. Nutze torch-Backend.")
+        return {
+            "backend": "native",
+            "device": "cuda",
+            "compute_type": "float16",
+            "use_torch_whisper": True,
+        }
+
     device = detect_device()
     compute_type = "float16" if device == "cuda" else "float32"
 

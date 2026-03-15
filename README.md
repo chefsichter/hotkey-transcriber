@@ -12,6 +12,7 @@ With Hotkey Transcriber you can transcribe in real time (Speech-To-Text) using a
 - [✨ Features](#features)
 - [🛠️ Requirements](#requirements)
 - [⚙️ Installation](#installation)
+- [🔄 Update](#update)
 - [🪟 Start program](#start-program)
 - [🎉 Usage](#usage)
 - [⚙️ Configuration](#configuration)
@@ -88,6 +89,37 @@ Uninstall:
 - Windows (PowerShell):
   ```powershell
   .\tools\uninstall_windows.ps1
+  ```
+
+## 🔄 Update
+
+How to update depends on how you installed it:
+
+- **Windows/Linux via installer (without `-AmdGpu`, uses local repo pipx install):**
+  ```powershell
+  git pull
+  .\tools\install_windows.ps1 -Autostart ask
+  ```
+  Linux:
+  ```bash
+  git pull
+  bash ./tools/install_linux.sh --autostart=ask
+  ```
+
+- **Manual `pipx install git+https://...`:**
+  ```powershell
+  pipx upgrade hotkey-transcriber
+  ```
+
+- **AMD GPU with `-AmdGpu` (repo-local venv):**
+  Fast code update (keeps existing ROCm/PyTorch stack):
+  ```powershell
+  git pull
+  .\.venv\Scripts\python.exe -m pip install -e .
+  ```
+  Use full AMD installer only for base stack changes (ROCm/PyTorch/Python) or a broken venv:
+  ```powershell
+  .\tools\install_windows.ps1 -AmdGpu -Autostart ask
   ```
 
 ### 🧰 Manual installation (pipx / git)

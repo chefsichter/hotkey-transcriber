@@ -69,20 +69,27 @@ def _configure_windows_dll_search_path() -> None:
 
 _configure_windows_dll_search_path()
 
-import ctranslate2 as ct2  # noqa: E402
+try:  # noqa: E402
+    import ctranslate2 as ct2  # type: ignore
 
-_utils_mod = (
-    importlib.import_module("ctranslate2.utils")
-    if importlib.util.find_spec("ctranslate2.utils")
-    else ct2
-)
-_get_supported_compute_types = getattr(
-    _utils_mod, "get_supported_compute_types", ct2.get_supported_compute_types
-)
+    _utils_mod = (
+        importlib.import_module("ctranslate2.utils")
+        if importlib.util.find_spec("ctranslate2.utils")
+        else ct2
+    )
+    _get_supported_compute_types = getattr(
+        _utils_mod, "get_supported_compute_types", ct2.get_supported_compute_types
+    )
+except Exception:
+    ct2 = None
+    _get_supported_compute_types = None
 
 
 def detect_device() -> str:
     """Return 'cuda', 'hip', or 'cpu' based on available hardware and drivers."""
+    if ct2 is None or _get_supported_compute_types is None:
+        return "cpu"
+
     try:
         if getattr(ct2, "get_cuda_device_count", lambda: 0)() > 0:
             return "cuda"

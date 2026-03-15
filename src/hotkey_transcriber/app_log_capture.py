@@ -29,6 +29,7 @@ import contextlib
 import io
 import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -74,8 +75,36 @@ def setup_log_capture() -> Path:
     Returns the path to the log file.
     """
     global _LOG_FILE_HANDLE
-    log_path = _runtime_log_path()
-    _LOG_FILE_HANDLE = open(log_path, "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+    primary_path = _runtime_log_path()
+    temp_log_dir = Path(tempfile.gettempdir()) / "hotkey-transcriber-logs"
+    with contextlib.suppress(Exception):
+        temp_log_dir.mkdir(parents=True, exist_ok=True)
+
+    candidate_paths = [
+        primary_path,
+        primary_path.with_name(f"{primary_path.stem}-{os.getpid()}.log"),
+        temp_log_dir / "hotkey-transcriber.log",
+        temp_log_dir / f"hotkey-transcriber-{os.getpid()}.log",
+    ]
+
+    log_path = primary_path
+    last_exc: Exception | None = None
+    for candidate in candidate_paths:
+        try:
+            _LOG_FILE_HANDLE = open(candidate, "a", encoding="utf-8", buffering=1)  # noqa: SIM115
+            log_path = candidate
+            break
+        except (PermissionError, OSError) as exc:
+            last_exc = exc
+            continue
+    else:
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Konnte keine Logdatei oeffnen.")
+
+    if log_path != primary_path:
+        with contextlib.suppress(Exception):
+            sys.__stderr__.write(f"Nutzung Fallback-Log: {log_path}\n")
     sys.stdout = _TeeStream(getattr(sys, "stdout", None), _LOG_FILE_HANDLE)
     sys.stderr = _TeeStream(getattr(sys, "stderr", None), _LOG_FILE_HANDLE)
     print(f"[{datetime.now().isoformat(timespec='seconds')}] Hotkey Transcriber started")

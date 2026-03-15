@@ -22,7 +22,9 @@ $TorchVisionWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvisi
 
 function Invoke-External {
     param([string]$Name, [scriptblock]$Script)
-    & $Script
+    # Prevent native command stdout from leaking into function return values
+    # when callers assign function output (e.g. $venvDir = Install-AmdGpuSupport).
+    & $Script | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "$Name failed with exit code $LASTEXITCODE" }
 }
 
