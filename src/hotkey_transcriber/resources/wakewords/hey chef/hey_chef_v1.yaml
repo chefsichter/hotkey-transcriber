@@ -1,0 +1,45 @@
+augmentation_batch_size: 16
+augmentation_rounds: 3
+background_paths:
+- ./fma
+background_paths_duplication_rate:
+- 1
+batch_n_per_class:
+  adversarial_negative: 64
+  fma_generic: 256
+  positive: 64
+  val_generic: 768
+custom_negative_phrases:
+- hey check
+- they chef
+- hey shell
+- hey jeff
+- hey shelf
+- hey shed
+- hey chest
+- hey debt
+- hey step
+- hey chat
+- hey shep
+false_positive_validation_data_path: validation_set_features.npy
+feature_data_files:
+  fma_generic: /home/chefsichter/Dokumente/openwakeword_training/fma_features.npy
+  val_generic: /home/chefsichter/Dokumente/openwakeword_training/val_neg_train_s2.npy
+layer_size: 64
+max_negative_weight: 80000
+model_name: hey_chef_v2
+model_type: dnn
+n_samples: 25000
+n_samples_val: 2000
+output_dir: ./my_custom_model
+piper_model_path: piper-sample-generator/models/en_US-libritts_r-medium.pt
+piper_sample_generator_path: ./piper-sample-generator
+rir_paths:
+- ./mit_rirs
+steps: 250000
+target_accuracy: 0.7
+target_false_positives_per_hour: 0.2
+target_phrase:
+- hey chef
+target_recall: 0.5
+tts_batch_size: 50
