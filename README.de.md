@@ -242,9 +242,14 @@ pipx upgrade hotkey-transcriber
 ```
 
 ## 🪟 Programm starten
-- Nach Standard-Install: `hotkey-transcriber`
-- Nach Vulkan-Install: `.\.venv\Scripts\hotkey-transcriber.exe` oder über Startmenü-Verknüpfung
-- Das Programm startet als Tray-Anwendung.
+
+Der Installer legt automatisch eine **Startmenü-Verknüpfung** (`Hotkey Transcriber`) an — für alle drei Installationsoptionen. Das ist der einfachste Weg, die App unter Windows zu starten.
+
+Alternativ per Terminal:
+- Standard-/WSL-Install: `hotkey-transcriber`
+- Vulkan-Install: `.\.venv\Scripts\hotkey-transcriber.exe`
+
+Das Programm startet als Tray-Anwendung (kein Fenster, Tray-Icon in der Taskleiste).
 
 ## 🎉 Nutzung
 1. `Alt+R` drücken, um die Aufnahme zu starten. Ein rotes Symbol zeigt die Aufnahme an.

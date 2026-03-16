@@ -242,9 +242,14 @@ pipx upgrade hotkey-transcriber
 ```
 
 ## 🪟 Start program
-- After standard install: `hotkey-transcriber`
-- After Vulkan install: `.\.venv\Scripts\hotkey-transcriber.exe` or via Start Menu shortcut
-- The program starts as a tray application.
+
+The installer automatically adds a **Start Menu shortcut** (`Hotkey Transcriber`) for all installation options — this is the easiest way to launch the app on Windows.
+
+Alternatively, from the terminal:
+- Standard/WSL install: `hotkey-transcriber`
+- Vulkan install: `.\.venv\Scripts\hotkey-transcriber.exe`
+
+The program starts as a tray application (no window, tray icon in the taskbar).
 
 ## 🎉 Usage
 1. Press `Alt+R` to start recording. A red symbol indicates recording.
