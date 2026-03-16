@@ -139,7 +139,7 @@ class WakeWordListener:
         try:
             resolved_models = self._resolve_models()
             self._model = Model(
-                wakeword_models=[model_path for _, model_path in resolved_models]
+                wakeword_model_paths=[model_path for _, model_path in resolved_models]
             )
             key_to_name: dict[str, str] = {}
             for normalized_name, model_path in resolved_models:
