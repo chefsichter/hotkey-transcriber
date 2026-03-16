@@ -47,10 +47,18 @@ def load_sessions(encoder_path, decoder_path, vaip_config, cache_dir, model_id):
         ],
     )
 
-    # Decoder: CPU only (static-shape ONNX decoders run fine on CPU)
+    # Decoder: VitisAI EP (NPU) with CPU fallback
     decoder = ort.InferenceSession(
         decoder_path,
-        providers=["CPUExecutionProvider"],
+        providers=["VitisAIExecutionProvider", "CPUExecutionProvider"],
+        provider_options=[
+            {
+                "config_file": vaip_config,
+                "cache_dir": cache_dir,
+                "cache_key": f"whisper_decoder_npu_{safe_model_id}",
+            },
+            {},
+        ],
     )
 
     return encoder, decoder
@@ -99,7 +107,7 @@ def greedy_decode(decoder, enc_hidden, tokenizer, language):
         lang_tok = tokenizer.convert_tokens_to_ids("<|multilingual|>")
 
     ids = [sot, lang_tok, task_tok, nots_tok]
-    max_new_tokens = 448
+    max_new_tokens = 100  # Static-shape CPU decoder is slow for large models; 100 ≈ ~75 words
 
     enc_hs_dtype = infer_dtype(enc_hs_inp) if enc_hs_inp else np.float32
 
