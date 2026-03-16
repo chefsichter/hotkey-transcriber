@@ -19,3 +19,16 @@ src/hotkey_transcriber/resources/lib
 src/hotkey_transcriber/config/config.json
 my_custom_model
 src/hotkey_transcriber/resources/back/
+
+# Claude Code
+.claude/
+
+# VitisAI / XRT runtime artifacts (dumped to cwd during NPU compilation)
+cpu_inference_summary_vaiml_par_0.json
+inference_summary_vaiml_par_0_0_avx.json
+original-info-signature.txt
+original-model-signature.txt
+record_timer_subgraph_cpu_ts.json
+record_timer_ts.json
+summary.csv
+xrt.run_summary
