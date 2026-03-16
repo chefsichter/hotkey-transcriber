@@ -26,14 +26,14 @@ def _init_runtime(config: dict):
     backend = runtime["backend"]
     device = runtime["device"]
     compute_type = runtime["compute_type"]
-    use_torch_whisper = runtime.get("use_torch_whisper", False)
+    engine = runtime.get("engine", "faster_whisper")
 
     model = load_model(
         size=config.get("model_size", "large-v3-turbo"),
         device=device,
         compute_type=compute_type,
         backend=backend,
-        use_torch_whisper=use_torch_whisper,
+        engine=engine,
     )
 
     recorder = load_speech_recorder(
@@ -96,7 +96,7 @@ def _init_runtime(config: dict):
         backend,
         device,
         compute_type,
-        use_torch_whisper,
+        engine,
         recorder,
         hotkey,
         ww_listener,
@@ -110,13 +110,11 @@ def main() -> None:
     config = load_config()
     log_path = setup_log_capture()
 
-    # Import PyQt5 (via tray_app) AFTER torch is loaded in _init_runtime.
-    # PyQt5 loads DLLs that conflict with ROCm initialization when imported first.
     (
         backend,
         device,
         compute_type,
-        use_torch_whisper,
+        engine,
         recorder,
         hotkey,
         ww_listener,
@@ -136,7 +134,7 @@ def main() -> None:
         backend=backend,
         device=device,
         compute_type=compute_type,
-        use_torch_whisper=use_torch_whisper,
+        engine=engine,
         log_path=log_path,
     )
     tray_app.run()

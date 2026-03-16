@@ -50,7 +50,7 @@ from hotkey_transcriber.speech_recorder import SpeechRecorder
 
 
 def _faster_whisper_api():
-    """Import faster_whisper lazily so AMD/torch startup does not require ctranslate2 DLLs."""
+    """Import faster_whisper lazily so backends can be chosen at runtime."""
     from faster_whisper import WhisperModel, download_model
 
     return WhisperModel, download_model
@@ -112,7 +112,7 @@ def load_model(
     compute_type: str,
     cache_dir=None,
     backend: str = "native",
-    use_torch_whisper: bool = False,
+    engine: str = "faster_whisper",
 ):
     """Download (if needed) and load a Whisper model. Returns a model object."""
     if backend == "wsl_amd":
@@ -125,8 +125,19 @@ def load_model(
             device = "cpu"
             compute_type = "float32"
 
-    if use_torch_whisper:
-        return _load_torch_whisper(size, device, compute_type)
+    if engine == "whisper_cpp":
+        from hotkey_transcriber.transcription.whisper_cpp_backend import WhisperCppModel
+
+        print("AMD-GPU erkannt - verwende whisper.cpp (Vulkan)-Backend.", flush=True)
+        stop_event = threading.Event()
+        message = f"Lade Whisper-Modell '{size}' auf '{device}' (whisper.cpp)..."
+        spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
+        spinner_thread.start()
+        model = WhisperCppModel(model_size=size)
+        stop_event.set()
+        spinner_thread.join()
+        print(f"✅ Whisper-Modell '{size}' auf '{device}' bereit (whisper.cpp).", flush=True)
+        return model
 
     WhisperModel, download_model = _faster_whisper_api()
 
@@ -184,28 +195,6 @@ def load_model(
     spinner_thread.join()
     print(f"✅ Whisper-Modell '{size}' auf '{device}' bereit.", flush=True)
 
-    return model
-
-
-def _load_torch_whisper(size: str, device: str, compute_type: str):
-    from hotkey_transcriber.transcription.torch_whisper_fallback_backend import TorchWhisperModel
-
-    print(
-        "AMD-GPU erkannt – verwende torch-Backend (openai-whisper) "
-        "statt CTranslate2, da dessen HIP-Kernel auf diesem Geraet nicht kompatibel sind.",
-        flush=True,
-    )
-
-    stop_event = threading.Event()
-    message = f"Lade Whisper-Modell '{size}' auf '{device}' (torch)…"
-    spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)
-    spinner_thread.start()
-
-    model = TorchWhisperModel(model_size=size, device=device, compute_type=compute_type)
-
-    stop_event.set()
-    spinner_thread.join()
-    print(f"✅ Whisper-Modell '{size}' auf '{device}' bereit (torch-Backend).", flush=True)
     return model
 
 

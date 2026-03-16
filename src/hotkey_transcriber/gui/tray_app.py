@@ -48,16 +48,20 @@ from hotkey_transcriber.wake_word.wake_word_script_actions import load_wake_word
 
 _DEFAULT_HOTKEY = {"modifier": "alt", "key": "r"}
 
-MODEL_CHOICES = [
+COMMON_MODEL_CHOICES = [
     "tiny",
     "base",
     "small",
-    "distil-small.en",
     "medium",
-    "distil-medium.en",
     "large-v3",
     "large-v3-turbo",
-    "distil-large-v3",
+]
+
+WHISPER_CPP_MODEL_CHOICES = COMMON_MODEL_CHOICES + [
+    "cstr/whisper-large-v3-turbo-german-ggml",
+]
+
+FASTER_WHISPER_MODEL_CHOICES = COMMON_MODEL_CHOICES + [
     "TheChola/whisper-large-v3-turbo-german-faster-whisper",
 ]
 
@@ -76,7 +80,7 @@ class TrayApp:
         backend: str,
         device: str,
         compute_type: str,
-        use_torch_whisper: bool,
+        engine: str,
         log_path,
     ) -> None:
         self.config = config
@@ -88,7 +92,7 @@ class TrayApp:
         self.backend = backend
         self.device = device
         self.compute_type = compute_type
-        self.use_torch_whisper = use_torch_whisper
+        self.engine = engine
         self.log_path = log_path
 
         self.silence_timeout_ms: int = config.get("silence_timeout_ms", 1500)
@@ -105,6 +109,11 @@ class TrayApp:
         self._ww_models = list_available_wake_word_models()
         self._patch_recorder_and_wake_word()
         self._build_menu()
+
+    def _model_choices(self) -> list[str]:
+        if self.engine == "whisper_cpp":
+            return WHISPER_CPP_MODEL_CHOICES
+        return FASTER_WHISPER_MODEL_CHOICES
 
     # ------------------------------------------------------------------
     # Recording & wake word wiring
@@ -257,7 +266,7 @@ class TrayApp:
         group.setExclusive(True)
         current = self.config.get("model_size", "large-v3-turbo")
         model_infos = self.config.get("model_infos", {})
-        for m in MODEL_CHOICES:
+        for m in self._model_choices():
             action = self._keep_qt_ref(QAction(m, model_menu))
             action.setToolTip(model_infos.get(m, ""))
             action.setCheckable(True)
@@ -286,7 +295,7 @@ class TrayApp:
                     device=self.device,
                     compute_type=self.compute_type,
                     backend=self.backend,
-                    use_torch_whisper=self.use_torch_whisper,
+                    engine=self.engine,
                 )
             except Exception as exc:
                 self.notifier.notify(

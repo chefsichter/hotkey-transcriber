@@ -1,7 +1,6 @@
 param(
     [ValidateSet("ask", "on", "off")]
-    [string]$Autostart = "ask",
-    [switch]$AmdGpu
+    [string]$Autostart = "ask"
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,32 +8,15 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
 
-# ── ROCm wheel URLs (Python 3.12 / ROCm 7.2) ────────────────────────
-$RocmCoreWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_core-7.2.0.dev0-py3-none-win_amd64.whl"
-$RocmDevelWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_devel-7.2.0.dev0-py3-none-win_amd64.whl"
-$RocmLibsWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_libraries_custom-7.2.0.dev0-py3-none-win_amd64.whl"
-$RocmMetaTar = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm-7.2.0.dev0.tar.gz"
-$TorchWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torch-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
-$TorchAudioWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchaudio-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
-$TorchVisionWheel = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvision-0.24.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl"
-
-# ── helpers ───────────────────────────────────────────────────────────
-
 function Invoke-External {
     param([string]$Name, [scriptblock]$Script)
-    # Prevent native command stdout from leaking into function return values
-    # when callers assign function output (e.g. $venvDir = Install-AmdGpuSupport).
     & $Script | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "$Name failed with exit code $LASTEXITCODE" }
 }
 
 function Get-PythonCommand {
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        return "py"
-    }
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        return "python"
-    }
+    if (Get-Command py -ErrorAction SilentlyContinue) { return "py" }
+    if (Get-Command python -ErrorAction SilentlyContinue) { return "python" }
     throw "Python launcher not found. Install Python first."
 }
 
@@ -46,18 +28,14 @@ function Get-HotkeyTranscriberExecutable {
     }
 
     $cmd = Get-Command hotkey-transcriber -ErrorAction SilentlyContinue
-    if ($cmd -and (Test-Path $cmd.Source)) {
-        return $cmd.Source
-    }
+    if ($cmd -and (Test-Path $cmd.Source)) { return $cmd.Source }
 
     $candidates = @(
-        (Join-Path $env:USERPROFILE ".local\\bin\\hotkey-transcriber.exe"),
-        (Join-Path $env:USERPROFILE ".local\\bin\\hotkey-transcriber")
+        (Join-Path $env:USERPROFILE ".local\bin\hotkey-transcriber.exe"),
+        (Join-Path $env:USERPROFILE ".local\bin\hotkey-transcriber")
     )
     foreach ($candidate in $candidates) {
-        if (Test-Path $candidate) {
-            return $candidate
-        }
+        if (Test-Path $candidate) { return $candidate }
     }
 
     throw "Could not find hotkey-transcriber executable after install."
@@ -71,7 +49,7 @@ function Get-ShortcutIconPath {
 
 function Ensure-ShortcutIcon {
     $iconPath = Get-ShortcutIconPath
-    $pngPath = Join-Path $repoRoot "src\\hotkey_transcriber\\resources\\icon\\microphone.png"
+    $pngPath = Join-Path $repoRoot "src\hotkey_transcriber\resources\icon\microphone.png"
 
     if (Test-Path $pngPath) {
         Add-Type -AssemblyName System.Drawing
@@ -80,23 +58,12 @@ function Ensure-ShortcutIcon {
             $icon = [System.Drawing.Icon]::FromHandle($bitmap.GetHicon())
             try {
                 $stream = [System.IO.File]::Open($iconPath, [System.IO.FileMode]::Create)
-                try {
-                    $icon.Save($stream)
-                } finally {
-                    $stream.Close()
-                }
-            } finally {
-                $icon.Dispose()
-            }
-        } finally {
-            $bitmap.Dispose()
-        }
+                try { $icon.Save($stream) } finally { $stream.Close() }
+            } finally { $icon.Dispose() }
+        } finally { $bitmap.Dispose() }
     }
 
-    if (Test-Path $iconPath) {
-        return $iconPath
-    }
-
+    if (Test-Path $iconPath) { return $iconPath }
     return (Get-HotkeyTranscriberExecutable)
 }
 
@@ -134,68 +101,117 @@ function New-StartMenuShortcut {
     $shortcut.IconLocation = "$iconPath,0"
     $shortcut.Save()
 
-    Write-Host "Startmenü-Verknüpfung erstellt: $shortcutPath (ohne Terminalfenster)"
+    Write-Host "Start menu shortcut created: $shortcutPath (without terminal window)"
 }
 
-# ── AMD GPU install (venv + ROCm torch + openai-whisper) ─────────────
+function Require-Command {
+    param([string]$Name)
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Required command '$Name' not found. Install it and rerun the installer."
+    }
+}
 
-function Install-AmdGpuSupport {
+function Resolve-VulkanSdkRoot {
+    if ($env:VULKAN_SDK -and (Test-Path $env:VULKAN_SDK)) {
+        return $env:VULKAN_SDK
+    }
+
+    $base = "C:\VulkanSDK"
+    if (-not (Test-Path $base)) { return $null }
+
+    $latest = Get-ChildItem $base -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+    if (-not $latest) { return $null }
+    return $latest.FullName
+}
+
+function Install-VulkanBackend {
     $venvDir = Join-Path $repoRoot ".venv"
     $python = Join-Path $venvDir "Scripts\python.exe"
 
     if (-not (Test-Path $python)) {
-        Write-Host "==> Erstelle Python 3.12 venv in $venvDir"
-        Invoke-External "Create Python 3.12 venv" { & py -3.12 -m venv $venvDir }
+        Write-Host "==> Creating venv in $venvDir"
+        Invoke-External "Create venv" { & py -3.12 -m venv $venvDir }
     }
 
-    $pyVer = & $python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-    if ($pyVer -ne "3.12") {
-        throw "AMD ROCm wheels erfordern Python 3.12 (gefunden: $pyVer). Bitte Python 3.12 installieren."
-    }
+    Write-Host "==> Upgrading packaging tools"
+    Invoke-External "Upgrade pip" { & $python -m pip install --upgrade pip "setuptools<82" wheel }
 
-    Write-Host "==> Upgrade pip"
-    Invoke-External "Upgrade pip" { & $python -m pip install --upgrade pip setuptools wheel }
-
-    Write-Host "==> Installiere ROCm SDK Pakete"
-    $env:PIP_PROGRESS_BAR = "off"
-    Invoke-External "Install ROCm SDK wheels" {
-        & $python -m pip install --no-cache-dir `
-            $RocmCoreWheel `
-            $RocmDevelWheel `
-            $RocmLibsWheel `
-            $RocmMetaTar
-    }
-
-    Write-Host "==> Installiere ROCm PyTorch"
-    Invoke-External "Install ROCm PyTorch wheels" {
-        & $python -m pip install --no-cache-dir `
-            $TorchWheel `
-            $TorchAudioWheel `
-            $TorchVisionWheel
-    }
-
-    Write-Host "==> Installiere openai-whisper"
-    Invoke-External "Install openai-whisper" { & $python -m pip install openai-whisper }
-
-    Write-Host "==> Installiere hotkey-transcriber"
+    Write-Host "==> Installing project in editable mode"
     Invoke-External "Install project" { & $python -m pip install -e $repoRoot }
 
-    Write-Host "==> Verifiziere GPU-Zugriff"
-    Invoke-External "Verify torch GPU" {
-        & $python -c "import torch; assert torch.cuda.is_available(), 'GPU nicht erkannt'; print(f'GPU: {torch.cuda.get_device_name(0)}')"
+    Require-Command -Name "git"
+    Require-Command -Name "cmake"
+
+    $vulkanSdk = Resolve-VulkanSdkRoot
+    if (-not $vulkanSdk) {
+        throw "Vulkan SDK not found. Install with:`n  winget install --id KhronosGroup.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements"
+    }
+    $glslcPath = Join-Path $vulkanSdk "Bin\glslc.exe"
+    $vulkanInclude = Join-Path $vulkanSdk "Include\vulkan\vulkan.h"
+    if (-not (Test-Path $glslcPath) -or -not (Test-Path $vulkanInclude)) {
+        throw "Vulkan SDK seems incomplete. Missing glslc/include under: $vulkanSdk"
+    }
+    $env:VULKAN_SDK = $vulkanSdk
+    $env:PATH = "$(Join-Path $vulkanSdk 'Bin');$env:PATH"
+
+    $whisperRoot = Join-Path $env:SystemDrive "htwcpp"
+    $whisperSrc = Join-Path $whisperRoot "src"
+    $whisperBuild = Join-Path $whisperRoot "build"
+    New-Item -ItemType Directory -Force -Path $whisperRoot | Out-Null
+
+    if (-not (Test-Path $whisperSrc)) {
+        Write-Host "==> Cloning whisper.cpp"
+        Invoke-External "Clone whisper.cpp" {
+            & git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git $whisperSrc
+        }
+    } else {
+        Write-Host "==> Updating whisper.cpp"
+        Invoke-External "Update whisper.cpp" {
+            & git -C $whisperSrc pull --ff-only
+        }
     }
 
+    Write-Host "==> Configuring whisper.cpp (Vulkan)"
+    Invoke-External "CMake configure whisper.cpp" {
+        & cmake -S $whisperSrc -B $whisperBuild -DGGML_VULKAN=ON -DWHISPER_BUILD_EXAMPLES=ON
+    }
+
+    Write-Host "==> Building whisper-cli (Release)"
+    Invoke-External "Build whisper-cli" {
+        & cmake --build $whisperBuild --config Release --target whisper-cli
+    }
+
+    $candidates = @(
+        (Join-Path $whisperBuild "bin\Release\whisper-cli.exe"),
+        (Join-Path $whisperBuild "bin\whisper-cli.exe"),
+        (Join-Path $whisperRoot "whisper-cli.exe")
+    )
+    $cliPath = $null
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            $cliPath = $candidate
+            break
+        }
+    }
+    if (-not $cliPath) { throw "whisper-cli.exe not found after build." }
+
+    Write-Host "==> Verifying whisper-cli"
+    Invoke-External "Verify whisper-cli" { & $cliPath --help }
+
+    [Environment]::SetEnvironmentVariable(
+        "HOTKEY_TRANSCRIBER_WHISPER_CPP_CLI",
+        $cliPath,
+        "User"
+    )
+    $env:HOTKEY_TRANSCRIBER_WHISPER_CPP_CLI = $cliPath
+
+    Write-Host "==> whisper.cpp configured: $cliPath"
     return $venvDir
 }
 
-# ── main ──────────────────────────────────────────────────────────────
-
-if ($AmdGpu) {
-    Write-Host "Installiere hotkey-transcriber mit AMD GPU Support (ROCm + torch)..."
-    $venvDir = Install-AmdGpuSupport
-    $exePath = Get-HotkeyTranscriberExecutable -VenvDir $venvDir
-    New-StartMenuShortcut -ExePath $exePath
-} else {
+function Install-PipxBackend {
     if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
         $python = Get-PythonCommand
         Write-Host "pipx not found - installing with $python..."
@@ -206,17 +222,61 @@ if ($AmdGpu) {
 
     Write-Host "Installing hotkey-transcriber with pipx..."
     pipx install --force $repoRoot
-    $exePath = Get-HotkeyTranscriberExecutable
-    New-StartMenuShortcut -ExePath $exePath
+    return ""
 }
 
-if ($Autostart -eq "ask") {
-    $answer = Read-Host "Autostart aktivieren? (j/n)"
-    if ($answer -match "^(j|ja|y|yes)$") {
-        $Autostart = "on"
-    } else {
-        $Autostart = "off"
+# ── Backend-Auswahl ───────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "Welches Backend soll installiert werden?"
+Write-Host "  [1] whisper.cpp + Vulkan  (GPU nativ, empfohlen fuer AMD/NVIDIA)"
+Write-Host "      Voraussetzung: Vulkan SDK, git, cmake"
+Write-Host "      winget install --id KhronosGroup.VulkanSDK --exact"
+Write-Host "  [2] WSL ROCm              (AMD GPU via WSL; WSL-Setup separat via setup_wsl_amd.ps1)"
+Write-Host "  [3] CPU / Standard        (kein GPU, nur faster-whisper auf CPU)"
+Write-Host ""
+
+do {
+    $backendChoice = Read-Host "Auswahl (1/2/3)"
+} while ($backendChoice -notin @("1", "2", "3"))
+
+switch ($backendChoice) {
+    "1" {
+        Write-Host ""
+        Write-Host "==> Installiere whisper.cpp + Vulkan-Backend..."
+        $venvDir = Install-VulkanBackend
+        $exePath = Get-HotkeyTranscriberExecutable -VenvDir $venvDir
+        New-StartMenuShortcut -ExePath $exePath
     }
+    "2" {
+        Write-Host ""
+        Write-Host "==> Installiere fuer WSL-ROCm-Backend (App via pipx, WSL-Setup separat)..."
+        Install-PipxBackend | Out-Null
+        $exePath = Get-HotkeyTranscriberExecutable
+        New-StartMenuShortcut -ExePath $exePath
+        [Environment]::SetEnvironmentVariable(
+            "HOTKEY_TRANSCRIBER_BACKEND",
+            "wsl_amd",
+            "User"
+        )
+        $env:HOTKEY_TRANSCRIBER_BACKEND = "wsl_amd"
+        Write-Host "==> HOTKEY_TRANSCRIBER_BACKEND=wsl_amd gesetzt."
+        Write-Host "    WSL + ROCm separat einrichten: .\tools\setup_wsl_amd.ps1"
+    }
+    "3" {
+        Write-Host ""
+        Write-Host "==> Installiere Standard-Backend (CPU, faster-whisper)..."
+        Install-PipxBackend | Out-Null
+        $exePath = Get-HotkeyTranscriberExecutable
+        New-StartMenuShortcut -ExePath $exePath
+    }
+}
+
+# ── Autostart ─────────────────────────────────────────────────────────────────
+
+if ($Autostart -eq "ask") {
+    $answer = Read-Host "Enable autostart? (y/n)"
+    if ($answer -match "^(j|ja|y|yes)$") { $Autostart = "on" } else { $Autostart = "off" }
 }
 
 $python = Get-PythonCommand
@@ -236,4 +296,4 @@ try {
     }
 }
 
-Write-Host "Installation abgeschlossen."
+Write-Host "Installation complete."

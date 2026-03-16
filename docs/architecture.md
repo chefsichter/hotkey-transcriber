@@ -30,7 +30,7 @@ src/hotkey_transcriber/
 ├── action_settings_ui_rows.py       # Qt5 row widgets for configuring actions
 │
 ├── wsl_whisper_bridge.py            # WSL subprocess bridge (Windows AMD GPU)
-├── torch_whisper_fallback_backend.py# openai-whisper fallback (RDNA4/Windows AMD)
+├── whisper_cpp_backend.py           # whisper.cpp fallback (Windows AMD)
 │
 ├── autostart.py                     # Platform autostart (Windows registry / .desktop)
 ├── builtin_scripts/
@@ -63,7 +63,7 @@ Wake word detected ────────────────────�
                                        silence timeout → SpeechRecorder.stop()
                                              │
                                     Whisper transcription
-                                    (faster-whisper / torch / WSL)
+                                    (faster-whisper / whisper.cpp / WSL)
                                              │
                               ┌──────────────┼──────────────────┐
                               ▼              ▼                  ▼
@@ -84,7 +84,7 @@ resolve_backend(config)
        │
        ├─ Linux + AMD GPU ─────────────────────────► WhisperModel (HIP/CTranslate2)
        │
-       ├─ Windows + AMD GPU (no WSL) ─────────────► TorchWhisperModel (openai-whisper)
+       ├─ Windows + AMD GPU (no WSL) ─────────────► WhisperCppModel (whisper.cpp Vulkan)
        │
        └─ NVIDIA / CPU ────────────────────────────► WhisperModel (CUDA/CPU/CTranslate2)
 ```

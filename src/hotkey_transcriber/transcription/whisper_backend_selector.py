@@ -91,75 +91,16 @@ def is_windows_amd_gpu() -> bool:
     return ("amd" in names) or ("radeon" in names)
 
 
-def _wsl_available() -> bool:
-    try:
-        _run(["wsl.exe", "--status"])
-        return True
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False
-
-
-def _wsl_rocm_ready() -> bool:
-    if not _wsl_available():
-        return False
-
-    probe = (
-        "source ~/.hotkey-transcriber-wsl/bin/activate 2>/dev/null || true\n"
-        'VENV_LIB="$HOME/.hotkey-transcriber-wsl/lib"\n'
-        'ROCM_LLVM_LIB="/opt/rocm/lib/llvm/lib"\n'
-        'ROCM_LIB="/opt/rocm/lib"\n'
-        'export LD_LIBRARY_PATH="$VENV_LIB:$ROCM_LLVM_LIB:$ROCM_LIB:$LD_LIBRARY_PATH"\n'
-        "export LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONIOENCODING=UTF-8\n"
-        "python3 - <<'PY'\n"
-        "import sys\n"
-        "try:\n"
-        " import ctranslate2 as ct2\n"
-        " ok = False\n"
-        " try:\n"
-        "  ok = ct2.get_cuda_device_count() > 0\n"
-        " except Exception:\n"
-        "  ok = False\n"
-        " if not ok:\n"
-        "  try:\n"
-        "   ct2.get_supported_compute_types('hip')\n"
-        "   ok = True\n"
-        "  except Exception:\n"
-        "   ok = False\n"
-        " if ok:\n"
-        "  sys.exit(0)\n"
-        "except Exception:\n"
-        " pass\n"
-        "try:\n"
-        " import subprocess\n"
-        " rc = subprocess.call(['rocminfo'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
-        " sys.exit(0 if rc == 0 else 3)\n"
-        "except Exception:\n"
-        " sys.exit(1)\n"
-        "PY"
-    )
-    try:
-        subprocess.check_call(
-            ["wsl.exe", "-e", "bash", "-lc", probe],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return True
-    except (subprocess.SubprocessError, FileNotFoundError):
-        return False
-
 
 def resolve_backend(config: dict) -> dict:
     """Determine the backend, device, and compute type based on hardware and config.
 
-    Returns a dict with keys: backend, device, compute_type, and optionally use_torch_whisper.
+    Returns a dict with keys: backend, device, compute_type, engine.
     """
-    selected = os.getenv("HOTKEY_TRANSCRIBER_BACKEND", config.get("backend", "auto"))
+    selected = os.getenv("HOTKEY_TRANSCRIBER_BACKEND", config.get("backend", "native"))
 
-    if selected not in ("auto", "native", "wsl_amd"):
-        selected = "auto"
-
-    if selected == "auto":
-        selected = "wsl_amd" if is_windows_amd_gpu() and _wsl_rocm_ready() else "native"
+    if selected not in ("native", "wsl_amd"):
+        selected = "native"
 
     if selected == "wsl_amd":
         print("🎮 AMD GPU unter Windows erkannt. Nutze WSL-Backend.")
@@ -167,15 +108,16 @@ def resolve_backend(config: dict) -> dict:
             "backend": "wsl_amd",
             "device": "cpu",
             "compute_type": "float32",
+            "engine": "faster_whisper",
         }
 
     if selected == "native" and is_windows_amd_gpu():
-        print("🎮 AMD GPU unter Windows erkannt. Nutze torch-Backend.")
+        print("🎮 AMD GPU unter Windows erkannt. Nutze whisper.cpp (Vulkan)-Backend.")
         return {
             "backend": "native",
-            "device": "cuda",
+            "device": "vulkan",
             "compute_type": "float16",
-            "use_torch_whisper": True,
+            "engine": "whisper_cpp",
         }
 
     device = detect_device()
@@ -187,14 +129,12 @@ def resolve_backend(config: dict) -> dict:
             "backend": "native",
             "device": device,
             "compute_type": "float16",
-            "use_torch_whisper": False,
+            "engine": "faster_whisper",
         }
-
-    use_torch = selected == "native" and is_windows_amd_gpu() and device == "cuda"
 
     return {
         "backend": "native",
         "device": device,
         "compute_type": compute_type,
-        "use_torch_whisper": use_torch,
+        "engine": "faster_whisper",
     }

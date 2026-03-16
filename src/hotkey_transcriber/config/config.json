@@ -6,7 +6,7 @@
   },
   "language": "auto",
   "silence_timeout_ms": 1000,
-  "notify_timeout_ms": 2000,
+  "notify_timeout_ms": 500,
   "wake_word_enabled": true,
   "wake_word_model": "hey kitt v2",
   "wake_word_script_actions_enabled": false,

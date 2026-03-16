@@ -18,157 +18,90 @@ With Hotkey Transcriber you can transcribe in real time (Speech-To-Text) using a
 - [⚙️ Configuration](#configuration)
 - [🏗️ Architecture](#architecture)
 - [🧑‍💻 Developer setup](#developer-setup)
-- [💡 Tips &amp; tricks](#tips--tricks)
 - [📄 Contribute](#contribute)
 - [📜 License](#license)
 
 ## ✨ Features
-- 🔊 Live dictation locally with OpenAI Whisper (`faster-whisper` for NVIDIA/CPU, `openai-whisper` torch backend for AMD GPUs on Windows)
+- 🔊 Live dictation locally with OpenAI Whisper
 - ⌨️ Recording via hotkey (Alt+R)
-- 🖥️ Tray icon (Windows &amp; Linux)
+- 🖥️ Tray icon (Windows & Linux)
 - 📋 Automatic insertion of the recognized transcript
-- ⚙️ Adjustable transcription interval and recognition language
+- ⚙️ Configurable model, language, silence detection, wake word
 
 ## 🛠️ Requirements
 
 Hotkey Transcriber uses OpenAI Whisper for real-time speech recognition. Depending on hardware, one of two backends is used:
 
-- **NVIDIA / CPU**: `faster-whisper` (CTranslate2) — fast, supports int8 quantization
-- **AMD GPU on Linux**: `faster-whisper` (CTranslate2 built from source with HIP/ROCm) — native GPU acceleration for RDNA 3 (gfx1100/1101/1102) and other supported architectures
-- **AMD GPU on Windows**: `openai-whisper` (torch) — CTranslate2's HIP kernels are incompatible with newer AMD GPUs (e.g. RDNA 4 / gfx1150), so the app automatically switches to the torch-based backend
+| Backend | Used when |
+|---------|-----------|
+| `faster-whisper` (CTranslate2) | NVIDIA GPU (CUDA) or CPU |
+| `faster-whisper` (CTranslate2 with HIP) | AMD GPU on Linux (ROCm) |
+| `whisper.cpp` (Vulkan) | AMD GPU on Windows — native path, no ROCm stack |
+| `faster-whisper` via WSL2 (ROCm) | AMD GPU on Windows — WSL path, higher RAM usage |
 
-A GPU is recommended for smooth, almost lag-free transcription:
-  - **NVIDIA** GPUs with CUDA drivers (>=11.7).
-  - **AMD** GPUs on Linux via ROCm (CTranslate2 built with HIP support).
-  - **AMD** GPUs on Windows via ROCm 7.2 + PyTorch (native, no WSL needed). Alternatively, a WSL-ROCm backend is also supported.
+A GPU is recommended for smooth, near-instant transcription. Without a GPU (CPU-only), transcription is also possible, but noticeably slower.
 
-Without a GPU (CPU-only), transcription is also possible, but significantly slower and with a latency of several seconds per recording interval.
+On first start, the selected Whisper model is downloaded once and cached locally. An internet connection is required for this initial download.
 
-On first start, the selected Whisper model is downloaded once and then reused from the local cache. An internet connection is required for this initial download.
-
-**Backend auto-detection:** The app detects the GPU and selects the best backend automatically. You can override with the environment variable `HOTKEY_TRANSCRIBER_BACKEND`:
+**Runtime backend override** — override the backend with the environment variable `HOTKEY_TRANSCRIBER_BACKEND`:
 
 | Value | Meaning |
 |-------|---------|
-| `auto` (default) | Auto-detect: on **Windows** checks for an AMD GPU + working WSL-ROCm environment → uses `wsl_amd` if found; on **Linux** always selects `native`. Falls back to `native` in all other cases. |
-| `native` | Run the model directly in the same process on the local system — uses CTranslate2/faster-whisper (CPU, CUDA, or ROCm/HIP) or the torch backend (AMD GPU on Windows). This is the only backend used on Linux. |
-| `wsl_amd` | **Windows only.** Delegate transcription to a WSL2 Linux VM with ROCm. Workaround for AMD GPUs where CTranslate2's HIP kernels are incompatible (e.g. RDNA 4). Has no effect on Linux. |
+| `native` (default) | Run model directly in-process: faster-whisper (CPU/CUDA/ROCm on Linux), or whisper.cpp Vulkan on Windows with AMD GPU. |
+| `wsl_amd` | Windows only. Delegate transcription to WSL2 with ROCm. Set automatically by the installer when choosing option [2], or manually via env var. Requires WSL setup via `setup_wsl_amd.ps1`. |
 
-### Simple installer (Linux & Windows)
+## ⚙️ Installation
 
-You can use the local installer scripts directly (including autostart choice):
+### Linux
 
-- Linux:
-  ```bash
-  bash ./tools/install_linux.sh --autostart=ask
-  ```
-- Linux with AMD GPU (ROCm) — details and prerequisites see [Linux + AMD GPU (ROCm)](#linux--amd-gpu-rocm):
-  ```bash
-  bash ./tools/install_linux.sh --amd-gpu --autostart=ask
-  ```
-  The `--amd-gpu` flag creates a venv (`.venv`) in the project directory, builds CTranslate2 from source with HIP/ROCm support, and installs `faster-whisper`. Requires ROCm runtime and build tools (`cmake`, `ninja`, `git`).
-- Windows (PowerShell):
-  ```powershell
-  .\tools\install_windows.ps1 -Autostart ask
-  ```
-- Windows with AMD GPU (PowerShell) — two methods available, see [native ROCm (recommended)](#windows-11--amd-gpu-native-rocm) vs. [ROCm via WSL (alternative)](#windows-11--amd-rocm-via-wsl-alternative).
-  ```powershell
-  .\tools\install_windows.ps1 -AmdGpu -Autostart ask
-  ```
-  The `-AmdGpu` switch creates a Python 3.12 venv with ROCm SDK, PyTorch ROCm and `openai-whisper` instead of using pipx.
+Standard install (CPU / NVIDIA):
+```bash
+bash ./tools/install_linux.sh --autostart=ask
+```
+
+With AMD GPU (ROCm) — see [Linux + AMD GPU (ROCm)](#linux--amd-gpu-rocm) for prerequisites:
+```bash
+bash ./tools/install_linux.sh --amd-gpu --autostart=ask
+```
+
+The `--amd-gpu` flag creates a venv (`.venv`) in the project directory, builds CTranslate2 from source with HIP/ROCm support, and installs `faster-whisper`. Requires ROCm runtime and build tools (`cmake`, `ninja`, `git`).
+
+### Windows
+
+```powershell
+.\tools\install_windows.ps1 -Autostart ask
+```
+
+The installer asks which backend to set up:
+
+```
+[1] whisper.cpp + Vulkan  (GPU native, recommended for AMD/NVIDIA)
+    Prerequisites: Vulkan SDK, git, cmake
+[2] WSL ROCm              (AMD GPU via WSL; WSL setup is separate via setup_wsl_amd.ps1)
+[3] CPU / Standard        (no GPU, faster-whisper on CPU)
+```
+
+The installer also creates a Start Menu shortcut (`Hotkey Transcriber`).
 
 Autostart values: `ask`, `on`, `off`.
-On Windows, the installer also creates a Start Menu entry (`Hotkey Transcriber`).
 
-Uninstall:
+### Uninstall
 
-- Linux:
-  ```bash
-  bash ./tools/uninstall_linux.sh
-  ```
-- Windows (PowerShell):
-  ```powershell
-  .\tools\uninstall_windows.ps1
-  ```
+Linux:
+```bash
+bash ./tools/uninstall_linux.sh
+```
 
-## 🔄 Update
-
-How to update depends on how you installed it:
-
-- **Windows/Linux via installer (without `-AmdGpu`, uses local repo pipx install):**
-  ```powershell
-  git pull
-  .\tools\install_windows.ps1 -Autostart ask
-  ```
-  Linux:
-  ```bash
-  git pull
-  bash ./tools/install_linux.sh --autostart=ask
-  ```
-
-- **Manual `pipx install git+https://...`:**
-  ```powershell
-  pipx upgrade hotkey-transcriber
-  ```
-
-- **AMD GPU with `-AmdGpu` (repo-local venv):**
-  Fast code update (keeps existing ROCm/PyTorch stack):
-  ```powershell
-  git pull
-  .\.venv\Scripts\python.exe -m pip install -e .
-  ```
-  Use full AMD installer only for base stack changes (ROCm/PyTorch/Python) or a broken venv:
-  ```powershell
-  .\tools\install_windows.ps1 -AmdGpu -Autostart ask
-  ```
-
-### 🧰 Manual installation (pipx / git)
-
-> **Note:** The pipx installation only supports NVIDIA GPUs and CPU. For AMD GPUs use the installer scripts instead (`install_linux.sh --amd-gpu` or `install_windows.ps1 -AmdGpu`).
-
-pipx is required to install the application in isolation:
-
-1. pipx:
-- On Linux:
-  ```bash
-  python3 -m pip install --user pipx
-  python3 -m pipx ensurepath
-  # Restart shell or log in again
-  ```
-  Or via package manager (Debian/Ubuntu):
-  ```bash
-  sudo apt update
-  sudo apt install pipx
-  ```
-
-- On Windows (PowerShell):
-  ```powershell
-  py -m pip install --user pipx
-  py -m pipx ensurepath
-  # Restart PowerShell
-  ```
-2. Direct installation from the Git repository:
-   ```bash
-   pipx install git+https://github.com/chefsichter/hotkey-transcriber
-   ```
-
-### AMD GPU setup
-
-There are three AMD GPU paths depending on your OS. All three use the same app — only the backend and installation method differ.
-
-| | Linux (ROCm) | Windows native (recommended) | Windows WSL (alternative) |
-|---|---|---|---|
-| **Backend** | `faster-whisper` (CTranslate2 with HIP) | `openai-whisper` (PyTorch ROCm) | `faster-whisper` (CTranslate2 in WSL2) |
-| **When to use** | AMD GPU on Linux | AMD GPU on Windows (especially RDNA 4+) | AMD GPU on Windows where CTranslate2's HIP kernels work (e.g. RDNA 3) |
-| **Pros** | Native GPU acceleration, int8 quantization, all models supported | Simple setup, no build step, broad GPU compatibility | CTranslate2 performance + int8 quantization on Windows |
-| **Cons** | Requires building CTranslate2 from source (~15 min) | No distil models, no int8 quantization, Python 3.12 required | Requires WSL2 setup, higher RAM usage, more complex |
-| **Installer** | `install_linux.sh --amd-gpu` | `install_windows.ps1 -AmdGpu` | `setup_wsl_amd.ps1` + `install_windows.ps1` |
+Windows (PowerShell):
+```powershell
+.\tools\uninstall_windows.ps1
+```
 
 ---
 
 ### Linux + AMD GPU (ROCm)
 
-For AMD GPUs on Linux (RDNA 3 / gfx1100 etc.), CTranslate2 is built from source with HIP support. This gives native GPU acceleration with full model and quantization support.
+For AMD GPUs on Linux (RDNA 3 / gfx1100 etc.), CTranslate2 is built from source with HIP support, giving native GPU acceleration with full model and quantization support.
 
 **Prerequisites:**
 - ROCm runtime installed (`rocminfo` and `hipconfig` must be available)
@@ -182,115 +115,169 @@ bash ./tools/install_linux.sh --amd-gpu --autostart=ask
 The installer:
 - Detects GPU architecture automatically via `rocminfo`
 - Creates a venv (`.venv`) in the project directory
-- Clones and builds CTranslate2 with HIP from source
+- Clones and builds CTranslate2 with HIP from source (~15 min)
 - Installs `faster-whisper` and the project
-- Verifies GPU access
 - Creates a launcher at `~/.local/bin/hotkey-transcriber` with the correct `LD_LIBRARY_PATH`
 
-After installation, start via:
+Start via:
 ```bash
 ~/.local/bin/hotkey-transcriber
 ```
 
-Notes:
-- The CTranslate2 source directory (`~/CTranslate2`, ~556 MB) can be deleted after installation to save space.
-- The app auto-detects the AMD GPU and uses the CTranslate2/faster-whisper backend with `float16`.
+Note: The CTranslate2 source directory (`~/CTranslate2`, ~556 MB) can be deleted after installation.
 
 ---
 
-### Windows 11 + AMD GPU (native ROCm)
+### Windows + AMD GPU (whisper.cpp + Vulkan, recommended)
 
-**Recommended** for AMD GPUs on Windows. Uses `openai-whisper` with PyTorch ROCm — no CTranslate2 build required. This is the best option for newer AMD GPUs (RDNA 4 / gfx1150 and above) where CTranslate2's HIP kernels are incompatible.
+Native Windows path using `whisper.cpp` with Vulkan. No ROCm or PyTorch stack needed.
 
-1. Install AMD Software: Adrenalin Edition for Windows (includes ROCm support), then reboot.
-2. Run the installer with `-AmdGpu`:
+**Prerequisites:**
+1. AMD Software: Adrenalin Edition (includes Vulkan runtime) — reboot after install.
+2. Vulkan SDK:
    ```powershell
-   .\tools\install_windows.ps1 -AmdGpu -Autostart ask
+   winget install --id KhronosGroup.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements
    ```
+3. git + CMake (with a C++ compiler, e.g. Visual Studio Build Tools)
+
+**Installation:**
+```powershell
+.\tools\install_windows.ps1 -Autostart ask
+```
+Choose **[1] whisper.cpp + Vulkan**.
 
 The installer:
-- Creates a Python 3.12 venv (`.venv`) in the repo
-- Installs ROCm SDK wheels + PyTorch ROCm wheels (ROCm 7.2, cp312)
-- Installs `openai-whisper` and the project
-- Verifies GPU access via `torch.cuda.is_available()`
+- Creates/updates a venv (`.venv`) in the repo
+- Clones/updates `whisper.cpp` and builds it with `GGML_VULKAN=ON`
+- Sets `HOTKEY_TRANSCRIBER_WHISPER_CPP_CLI` as a user environment variable
 - Creates a Start Menu shortcut
 
-After installation, start via the Start Menu shortcut or directly:
-
+Start via Start Menu shortcut or directly:
 ```powershell
 .\.venv\Scripts\hotkey-transcriber.exe
 ```
 
 Notes:
-- Python `3.12` is required for AMD ROCm wheels (`cp312`).
-- The app auto-detects the AMD GPU and uses the torch backend with `float16` for optimal performance.
-- Distil models (`distil-small.en`, `distil-medium.en`, `distil-large-v3`) and custom HuggingFace models are not available with the torch backend.
-- Detailed manual: [Windows AMD GPU setup (English)](./tools/WINDOWS_ROCM_NATIVE_MANUAL.md)
+- Distil models (`distil-small.en`, `distil-medium.en`, `distil-large-v3`) and CTranslate2-only models are not available with `whisper.cpp`.
+- `cstr/whisper-large-v3-turbo-german-ggml` is whisper.cpp format — selectable in the tray model menu.
+- On `faster-whisper` backends (Linux / WSL), use `TheChola/whisper-large-v3-turbo-german-faster-whisper` instead.
 
 ---
 
-### Windows 11 + AMD (ROCm via WSL, alternative)
+### Windows + AMD GPU (WSL ROCm, alternative)
 
-Alternative for AMD GPUs on Windows where CTranslate2's HIP kernels work (e.g. RDNA 3 / gfx1100). Runs `faster-whisper`/CTranslate2 inside a WSL2 Linux VM, giving access to int8 quantization and distil models — at the cost of higher RAM usage and a more complex setup. Both methods use the same Windows installer (`install_windows.ps1`); the difference is the additional WSL setup step.
+Runs `faster-whisper`/CTranslate2 inside a WSL2 Linux VM with ROCm. Gives access to int8 quantization and distil models at the cost of higher RAM usage and more complex setup.
 
-1. Install AMD Software: Adrenalin Edition for Windows (includes WSL support), then reboot.
-2. Open elevated PowerShell in this repo and run:
-   ```powershell
-   .\tools\setup_wsl_amd.ps1
-   ```
-3. Install/start:
-   ```powershell
-   .\tools\install_windows.ps1 -Autostart ask
-   ```
-   The app auto-detects WSL-ROCm readiness and uses it when available.
+**Prerequisites:**
+- AMD Software: Adrenalin Edition (includes WSL GPU support) — reboot after install.
 
-   Manual override:
-   ```powershell
-   $env:HOTKEY_TRANSCRIBER_BACKEND="wsl_amd"
-   hotkey-transcriber
-   ```
+**Setup (once):**
+```powershell
+.\tools\setup_wsl_amd.ps1
+```
+
+**Installation:**
+```powershell
+.\tools\install_windows.ps1 -Autostart ask
+```
+Choose **[2] WSL ROCm**.
+
+This installs the app via pipx and sets `HOTKEY_TRANSCRIBER_BACKEND=wsl_amd` as a user environment variable. The app will use the WSL backend on every start.
+
+Manual override (without reinstalling):
+```powershell
+$env:HOTKEY_TRANSCRIBER_BACKEND="wsl_amd"
+hotkey-transcriber
+```
+
+---
+
+### Manual installation (pipx)
+
+> Note: pipx installation only supports NVIDIA GPU and CPU. For AMD GPUs use the installer scripts.
+
+Linux:
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+# Restart shell
+pipx install git+https://github.com/chefsichter/hotkey-transcriber
+```
+
+Windows (PowerShell):
+```powershell
+py -m pip install --user pipx
+py -m pipx ensurepath
+# Restart PowerShell
+pipx install git+https://github.com/chefsichter/hotkey-transcriber
+```
+
+## 🔄 Update
+
+**Standard install (pipx, CPU/NVIDIA):**
+```powershell
+git pull
+.\tools\install_windows.ps1 -Autostart ask   # choose [3]
+```
+Linux:
+```bash
+git pull
+bash ./tools/install_linux.sh --autostart=ask
+```
+
+**Vulkan backend (venv in repo):**
+Fast code-only update (keeps existing whisper.cpp build):
+```powershell
+git pull
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+Full reinstall only needed if whisper.cpp/Vulkan toolchain changed or venv is broken:
+```powershell
+.\tools\install_windows.ps1 -Autostart ask   # choose [1]
+```
+
+**Manual pipx install from git:**
+```powershell
+pipx upgrade hotkey-transcriber
+```
 
 ## 🪟 Start program
-- After installation, run:
-  ```cmd
-  hotkey-transcriber
-  ```
-- For the AMD GPU venv install, use the exe directly: `.\.venv\Scripts\hotkey-transcriber.exe`
+- After standard install: `hotkey-transcriber`
+- After Vulkan install: `.\.venv\Scripts\hotkey-transcriber.exe` or via Start Menu shortcut
 - The program starts as a tray application.
 
 ## 🎉 Usage
 1. Press `Alt+R` to start recording. A red symbol indicates recording.
-2. Release `R` to stop the recording. The recognized text is pasted and copied.
-3. You can use the tray menu to change the transcription interval, recognition language, and autostart, or exit the program.
-4. Model selection (tray icon → "Select model"):
-    - Models: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
-    - Additional CTranslate2-only models (NVIDIA/CPU): `distil-small.en`, `distil-medium.en`, `distil-large-v3`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
-    - Smaller models: reduced VRAM &amp; CPU requirements → faster transcription (slightly lower accuracy)
-    - VRAM recommendation: `tiny`/`base`: 2-4 GB; `small`/`medium`/`large*`: ≥6 GB
+2. Release `R` to stop recording. The recognized text is pasted.
+3. Use the tray menu to change model, language, hotkey, wake word, or autostart.
+4. Model selection (tray → "Modell"):
+   - whisper.cpp (Vulkan): `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`, `cstr/whisper-large-v3-turbo-german-ggml`
+   - faster-whisper (CPU/NVIDIA/Linux): same base models + `distil-small.en`, `distil-medium.en`, `distil-large-v3`, `TheChola/whisper-large-v3-turbo-german-faster-whisper`
+   - VRAM guidance: `tiny`/`base`: 2–4 GB; `small`/`medium`/`large*`: ≥6 GB
 
 ## ⚙️ Configuration
-Default values are saved in a JSON file under `~/.config/hotkey-transcriber/config.json`. Settings such as model size, interval and detection language are automatically retained.
+Settings are saved in `~/.config/hotkey-transcriber/config.json`. Model, language, hotkey, silence timeout, wake word and spoken-text actions are all stored there and persist across restarts.
 
 ## 🏗️ Architecture
 
-The application is a PyQt5 system-tray app. Source lives under `src/hotkey_transcriber/` and is organized into focused subpackages:
+PyQt5 tray app. Source under `src/hotkey_transcriber/`:
 
 ```
 src/hotkey_transcriber/
-├── main.py                         # Entry point: tray icon, menus, signal wiring
+├── main.py                         # Entry point: tray, menus, signal wiring
 ├── app_log_capture.py              # In-memory log ring-buffer (tray log window)
 ├── speech_recorder.py              # Audio capture loop + VAD + Whisper dispatch
-├── resource_path_resolver.py       # Microphone icon path (package or filesystem)
+├── resource_path_resolver.py       # Microphone icon path
 ├── autostart.py                    # OS autostart registration (Linux/Windows)
 │
 ├── config/
 │   └── config_manager.py           # load_config / save_config (JSON)
 │
 ├── transcription/
-│   ├── compute_device_detector.py  # CUDA / HIP / CPU detection via CTranslate2
+│   ├── compute_device_detector.py  # CUDA / HIP / CPU detection
 │   ├── whisper_backend_selector.py # Resolves backend from config + environment
 │   ├── model_and_recorder_factory.py  # Instantiates model, recorder, keyboard listener
-│   ├── torch_whisper_fallback_backend.py  # openai-whisper wrapper (AMD/Windows)
+│   ├── whisper_cpp_backend.py      # whisper.cpp wrapper (Windows AMD/Vulkan)
 │   └── wsl_whisper_bridge.py       # JSON-IPC bridge to faster-whisper in WSL2
 │
 ├── keyboard/
@@ -300,43 +287,30 @@ src/hotkey_transcriber/
 │
 ├── wake_word/
 │   ├── wake_word_listener.py       # openwakeword background listener thread
-│   └── wake_word_script_actions.py # Wake-word → shell-script action mapping
+│   └── wake_word_script_actions.py # Wake-word → script action mapping
 │
 ├── actions/
 │   ├── spoken_text_actions.py      # Spoken-text trigger matching + execution
 │   └── action_settings_ui_rows.py  # Qt5 settings rows for script actions
 │
-└── builtin_scripts/                # Bundled shell/Python helper scripts
+└── builtin_scripts/                # Bundled helper scripts
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the full event-flow and backend-selection diagrams.
+See [docs/architecture.md](docs/architecture.md) for event-flow and backend-selection diagrams.
 
 ## 🧑‍💻 Developer setup
 
 ```bash
-# 1. Clone and create a venv
 git clone https://github.com/chefsichter/hotkey-transcriber
 cd hotkey-transcriber
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-
-# 2. Install with dev extras
 pip install -e ".[dev]"
-
-# 3. Install pre-commit hooks
 pre-commit install
-
-# 4. Run the test suite
 pytest
-
-# 5. Format, lint, type-check
-black src tests
-ruff check src tests
-mypy src
 ```
 
-> The `dev` extras include `pytest`, `pytest-cov`, `black`, `ruff`, and `mypy`.
-> All tool settings are in `pyproject.toml`.
+> Dev extras include `pytest`, `pytest-cov`, `black`, `ruff`, `mypy`. All settings in `pyproject.toml`.
 
 ## 📄 Contribute
 - Report bugs via Issues
