@@ -181,7 +181,7 @@ class WhisperNpuModel:
                 elapsed = int(time.time() - start_time)
                 char = spinner_chars[spinner_idx % len(spinner_chars)]
                 spinner_idx += 1
-                print(f"\r{char} [NPU] Kompiliere Encoder fuer NPU... {elapsed}s", end="", flush=True)
+                print(f"\r{char} [NPU] Lade/Kompiliere Modell fuer NPU... {elapsed}s", end="", flush=True)
                 continue
 
             if line is None:
@@ -202,9 +202,9 @@ class WhisperNpuModel:
                 elapsed = int(time.time() - start_time)
                 char = spinner_chars[spinner_idx % len(spinner_chars)]
                 spinner_idx += 1
-                print(f"\r{char} [NPU] Kompiliere Encoder fuer NPU... {elapsed}s", end="", flush=True)
+                print(f"\r{char} [NPU] Lade/Kompiliere Modell fuer NPU... {elapsed}s", end="", flush=True)
 
-        print(f"\r[NPU] Encoder-Kompilierung abgeschlossen ({int(time.time() - start_time)}s).      ", flush=True)
+        print(f"\r[NPU] Modell geladen ({int(time.time() - start_time)}s).                          ", flush=True)
 
         if status.get("status") != "ready":
             self._proc.terminate()
