@@ -14,7 +14,10 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -43,35 +46,117 @@ def show_settings_dialog(
     """Show the settings dialog. Returns a dict with updated values on OK, or None if cancelled."""
     dlg = QDialog()
     dlg.setWindowTitle("Einstellungen")
-    form = QFormLayout(dlg)
+    main_layout = QVBoxLayout(dlg)
 
-    sp_silence = QSpinBox(dlg)
+    builtin_scripts = list_builtin_scripts()
+
+    # ── Aufnahme ──────────────────────────────────────────────────────────────
+    grp_aufnahme = QGroupBox("Aufnahme", dlg)
+    aufnahme_form = QFormLayout(grp_aufnahme)
+
+    sp_silence = QSpinBox(grp_aufnahme)
     sp_silence.setRange(500, 10000)
     sp_silence.setSuffix(" ms")
     sp_silence.setSingleStep(100)
     sp_silence.setValue(silence_timeout_ms)
-    form.addRow("Stille bis Auto-Stop:", sp_silence)
+    sp_silence.setToolTip("Wie lange Stille nach erkannter Sprache abgewartet wird, bevor die Aufnahme automatisch stoppt.")
+    aufnahme_form.addRow("Stille bis Auto-Stop:", sp_silence)
 
-    sp_initial_wait = QSpinBox(dlg)
+    sp_initial_wait = QSpinBox(grp_aufnahme)
     sp_initial_wait.setRange(0, 10000)
     sp_initial_wait.setSuffix(" ms")
     sp_initial_wait.setSingleStep(100)
     sp_initial_wait.setSpecialValueText("deaktiviert")
     sp_initial_wait.setValue(max_initial_wait_ms)
-    form.addRow("Max. Anfangswarten:", sp_initial_wait)
+    sp_initial_wait.setToolTip("Maximale Wartezeit auf das erste Sprachsignal. Danach stoppt die Aufnahme automatisch.\n0 = deaktiviert.")
+    aufnahme_form.addRow("Max. Anfangswarten:", sp_initial_wait)
 
-    sp_notify = QSpinBox(dlg)
+    sp_notify = QSpinBox(grp_aufnahme)
     sp_notify.setRange(200, 10000)
     sp_notify.setSuffix(" ms")
     sp_notify.setSingleStep(100)
     sp_notify.setValue(notify_timeout_ms)
-    form.addRow("Benachrichtigungsdauer:", sp_notify)
+    sp_notify.setToolTip("Wie lange Tray-Benachrichtigungen eingeblendet bleiben.")
+    aufnahme_form.addRow("Benachrichtigungsdauer:", sp_notify)
 
-    cb_ww = QCheckBox("Aktiviert", dlg)
+    main_layout.addWidget(grp_aufnahme)
+
+    # ── Inferenz ──────────────────────────────────────────────────────────────
+    grp_inf = QGroupBox("Inferenz", dlg)
+    inf_form = QFormLayout(grp_inf)
+
+    preset_widget = QWidget(grp_inf)
+    preset_layout = QHBoxLayout(preset_widget)
+    preset_layout.setContentsMargins(0, 0, 0, 0)
+    btn_schnell    = QPushButton("Schnell",    preset_widget)
+    btn_ausgewogen = QPushButton("Ausgewogen", preset_widget)
+    btn_genau      = QPushButton("Genau",      preset_widget)
+    btn_standard   = QPushButton("Standard",   preset_widget)
+    for b in (btn_schnell, btn_ausgewogen, btn_genau, btn_standard):
+        preset_layout.addWidget(b)
+    inf_form.addRow("Preset:", preset_widget)
+
+    sp_beam = QSpinBox(grp_inf)
+    sp_beam.setRange(1, 8)
+    sp_beam.setValue(config.get("beam_size", 1))
+    sp_beam.setToolTip(
+        "Wie viele parallele Kandidaten Whisper verfolgt.\n"
+        "1 = greedy (schnellst), 5 = maximale Genauigkeit."
+    )
+    inf_form.addRow("Beam Size:", sp_beam)
+
+    sp_best_of = QSpinBox(grp_inf)
+    sp_best_of.setRange(1, 8)
+    sp_best_of.setValue(config.get("best_of", 1))
+    sp_best_of.setToolTip(
+        "Wie viele zufällige Samples verglichen werden.\n"
+        "Nur sinnvoll wenn Temperature > 0."
+    )
+    inf_form.addRow("Best-of:", sp_best_of)
+
+    sp_temp = QDoubleSpinBox(grp_inf)
+    sp_temp.setRange(0.0, 1.0)
+    sp_temp.setSingleStep(0.1)
+    sp_temp.setDecimals(1)
+    sp_temp.setValue(config.get("temperature", 0.0))
+    sp_temp.setToolTip(
+        "0.0 = deterministisch (empfohlen).\n"
+        "> 0 = zufälliges Sampling, kann bei schlechtem Audio helfen,\n"
+        "aber auch Halluzinationen erzeugen."
+    )
+    inf_form.addRow("Temperature:", sp_temp)
+
+    def _update_best_of_state() -> None:
+        enabled = sp_temp.value() > 0
+        sp_best_of.setEnabled(enabled)
+        if not enabled:
+            sp_best_of.setValue(1)
+
+    _update_best_of_state()
+    sp_temp.valueChanged.connect(lambda _: _update_best_of_state())
+
+    def _apply_inf_preset(beam: int, best: int, temp: float) -> None:
+        sp_beam.setValue(beam)
+        sp_temp.setValue(temp)
+        sp_best_of.setValue(best)
+        _update_best_of_state()
+
+    btn_schnell.clicked.connect(   lambda: _apply_inf_preset(1, 1, 0.0))
+    btn_ausgewogen.clicked.connect(lambda: _apply_inf_preset(2, 1, 0.0))
+    btn_genau.clicked.connect(     lambda: _apply_inf_preset(5, 5, 0.4))
+    btn_standard.clicked.connect(  lambda: _apply_inf_preset(1, 1, 0.0))
+
+    main_layout.addWidget(grp_inf)
+
+    # ── Wake Word ─────────────────────────────────────────────────────────────
+    grp_ww = QGroupBox("Wake Word", dlg)
+    ww_form = QFormLayout(grp_ww)
+
+    cb_ww = QCheckBox("Aktiviert", grp_ww)
     cb_ww.setChecked(config.get("wake_word_enabled", False))
-    form.addRow("Wake Word:", cb_ww)
+    ww_form.addRow("Wake Word:", cb_ww)
 
-    combo_ww = QComboBox(dlg)
+    combo_ww = QComboBox(grp_ww)
     combo_ww.addItems(ww_models)
     current_model = config.get("wake_word_model", "hey jarvis")
     idx = combo_ww.findText(current_model)
@@ -80,23 +165,31 @@ def show_settings_dialog(
     else:
         combo_ww.addItem(current_model)
         combo_ww.setCurrentText(current_model)
-    form.addRow("Wake-Word Modell:", combo_ww)
+    ww_form.addRow("Modell:", combo_ww)
 
-    builtin_scripts = list_builtin_scripts()
+    wake_word_script_rows, wake_word_scripts_widget = _build_ww_rows_widget(
+        grp_ww, wake_word_script_actions, ww_models, builtin_scripts
+    )
+    ww_form.addRow("Skripte:", wake_word_scripts_widget)
+
+    main_layout.addWidget(grp_ww)
+
+    # ── Text-Aktionen ─────────────────────────────────────────────────────────
+    grp_text = QGroupBox("Text-Aktionen", dlg)
+    text_form = QFormLayout(grp_text)
+
     spoken_text_script_rows, spoken_text_scripts_widget = _build_script_rows_widget(
-        dlg, spoken_text_actions, _add_spoken_text_row_fn=lambda w, rows, layout: (
+        grp_text, spoken_text_actions, _add_spoken_text_row_fn=lambda w, rows, layout: (
             lambda initial=None: _append_spoken_text_row(w, rows, layout, builtin_scripts, initial)
         )
     )
-    form.addRow("Text-Skripte:", spoken_text_scripts_widget)
+    text_form.addRow("Text-Skripte:", spoken_text_scripts_widget)
 
-    wake_word_script_rows, wake_word_scripts_widget = _build_ww_rows_widget(
-        dlg, wake_word_script_actions, ww_models, builtin_scripts
-    )
-    form.addRow("Wake-Word-Skripte:", wake_word_scripts_widget)
+    main_layout.addWidget(grp_text)
 
+    # ── Buttons ───────────────────────────────────────────────────────────────
     buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, parent=dlg)
-    form.addRow(buttons)
+    main_layout.addWidget(buttons)
 
     parsed_actions: dict = {}
 
@@ -127,6 +220,9 @@ def show_settings_dialog(
         "wake_word_model": combo_ww.currentText(),
         "spoken_text_actions": parsed_actions["spoken_text_actions"],
         "wake_word_script_actions": parsed_actions["wake_word_script_actions"],
+        "beam_size": sp_beam.value(),
+        "best_of": sp_best_of.value(),
+        "temperature": sp_temp.value(),
     }
 
 

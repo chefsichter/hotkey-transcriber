@@ -95,7 +95,14 @@ class WhisperCppModel:
         temperature=0,
         condition_on_previous_text=False,
     ):
-        del vad_filter, beam_size, best_of, temperature, condition_on_previous_text
+        del vad_filter, condition_on_previous_text
+
+        import os
+
+        cpu_count = os.cpu_count() or 4
+        # With Vulkan active the GPU handles heavy computation; 4 threads suffice for
+        # CPU-side pre/post-processing and avoids contention with Vulkan driver threads.
+        threads = min(max(cpu_count // 6, 4), 8)
 
         audio_f32 = np.asarray(audio, dtype=np.float32)
         audio_i16 = np.clip(audio_f32, -1.0, 1.0)
@@ -112,20 +119,27 @@ class WhisperCppModel:
                 wf.setframerate(16000)
                 wf.writeframes(audio_i16.tobytes())
 
+            lang = "auto" if not language else str(language)
             cmd = [
                 self._cli_path,
-                "-m",
-                self._model_path,
-                "-f",
-                str(wav_path),
+                "-m", self._model_path,
+                "-f", str(wav_path),
                 "-oj",
-                "-of",
-                str(out_prefix),
+                "-of", str(out_prefix),
                 "-nt",
                 "-np",
-                "-l",
-                "auto" if not language else str(language),
+                "-t", str(threads),
+                "-bs", str(max(1, beam_size)),
+                "-bo", str(max(1, best_of)),
+                "-tp", str(float(temperature)),
+                "-nf",
+                "-l", lang,
             ]
+            # Flash attention causes quality regressions for non-English languages (issue #3020).
+            if lang == "en":
+                cmd.append("-fa")
+            else:
+                cmd.append("-nfa")
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode != 0:
                 raise RuntimeError(

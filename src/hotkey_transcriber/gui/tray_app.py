@@ -237,10 +237,11 @@ class TrayApp:
 
         self._build_model_menu(menu)
         self._build_language_menu(menu)
-        self._build_hotkey_actions(menu)
         menu.addSeparator()
         self._build_wake_word_menu(menu)
         self._build_text_actions_menu(menu)
+        menu.addSeparator()
+        self._build_hotkey_actions(menu)
         self._build_settings_action(menu)
         menu.addSeparator()
         self._build_autostart_action(menu)
@@ -495,6 +496,10 @@ class TrayApp:
         previous_ww_model = self.ww_listener.model_name
         previous_model_names = list(self.ww_listener.model_names)
 
+        self.recorder.beam_size = result["beam_size"]
+        self.recorder.best_of = result["best_of"]
+        self.recorder.temperature = result["temperature"]
+
         self.config.update(
             {
                 "silence_timeout_ms": self.silence_timeout_ms,
@@ -504,6 +509,9 @@ class TrayApp:
                 "wake_word_script_actions": result["wake_word_script_actions"],
                 "wake_word_enabled": new_ww_enabled,
                 "wake_word_model": new_ww_model,
+                "beam_size": result["beam_size"],
+                "best_of": result["best_of"],
+                "temperature": result["temperature"],
             }
         )
         save_config(self.config)

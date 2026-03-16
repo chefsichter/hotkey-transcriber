@@ -211,6 +211,9 @@ def load_speech_recorder(
     spoken_text_actions: list | None = None,
     silence_timeout_ms: int = 1500,
     max_initial_wait_ms: int = 5000,
+    beam_size: int = 1,
+    best_of: int = 1,
+    temperature: float = 0.0,
 ) -> SpeechRecorder:
     """Build and return a fully configured SpeechRecorder instance."""
     message = "Lade SpeechRecorder…"
@@ -235,6 +238,9 @@ def load_speech_recorder(
         spoken_text_action_executor=spoken_text_action_executor,
         silence_timeout_ms=silence_timeout_ms,
         max_initial_wait_ms=max_initial_wait_ms,
+        beam_size=beam_size,
+        best_of=best_of,
+        temperature=temperature,
     )
 
     stop_event.set()

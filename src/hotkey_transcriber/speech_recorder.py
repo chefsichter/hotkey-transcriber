@@ -187,6 +187,9 @@ class SpeechRecorder:
         silence_timeout_ms: int = 1500,
         max_initial_wait_ms: int | None = 5000,
         on_transcription_finished=None,
+        beam_size: int = 1,
+        best_of: int = 1,
+        temperature: float = 0.0,
     ):
         self.model = model
         self.keyb_c = keyboard_controller
@@ -216,6 +219,9 @@ class SpeechRecorder:
         self._speech_detected = False
         self._vad = _load_vad()
         self.on_transcription_finished = on_transcription_finished
+        self.beam_size = beam_size
+        self.best_of = best_of
+        self.temperature = temperature
 
     @staticmethod
     def _normalize_initial_wait_ms(value):
@@ -443,9 +449,9 @@ class SpeechRecorder:
                     audio,
                     language=self.language,
                     vad_filter=True,
-                    beam_size=1,
-                    best_of=1,
-                    temperature=0,
+                    beam_size=self.beam_size,
+                    best_of=self.best_of,
+                    temperature=self.temperature,
                     condition_on_previous_text=False,
                 )
                 segments = list(seg_iterator)

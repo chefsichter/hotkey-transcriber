@@ -49,6 +49,9 @@ def _init_runtime(config: dict):
         spoken_text_actions=config.get("spoken_text_actions", []),
         silence_timeout_ms=config.get("silence_timeout_ms", 1500),
         max_initial_wait_ms=config.get("max_initial_wait_ms", 5000),
+        beam_size=config.get("beam_size", 1),
+        best_of=config.get("best_of", 1),
+        temperature=config.get("temperature", 0.0),
     )
 
     hotkey = load_keyboard_listener(
