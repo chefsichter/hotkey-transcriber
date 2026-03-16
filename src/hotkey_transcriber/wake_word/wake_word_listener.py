@@ -61,7 +61,7 @@ def list_available_wake_word_models() -> list[str]:
     """Return a sorted list of all available wake word model names."""
     models: set[str] = set()
     if _HAVE_WAKE_WORD:
-        models.update(key.replace("_", " ") for key in openwakeword.MODELS)
+        models.update(key.replace("_", " ") for key in openwakeword.models)
 
     for directory in _CUSTOM_WAKEWORD_DIRS:
         if not directory.exists():
@@ -98,7 +98,7 @@ class WakeWordListener:
             normalized_name = _normalize_model_name(model_name)
 
             if _HAVE_WAKE_WORD:
-                model_info = openwakeword.MODELS.get(normalized_name)
+                model_info = openwakeword.models.get(normalized_name)
                 if model_info:
                     resolved.append((normalized_name, model_info["model_path"]))
                     continue

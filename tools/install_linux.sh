@@ -232,6 +232,20 @@ except Exception:
     pass
 " || echo "  (verification skipped — run hotkey-transcriber to test)"
 
+  # Remove any conflicting hotkey-transcriber installations (e.g. pyenv, pipx)
+  # that would shadow the ROCm launcher in ~/.local/bin due to PATH ordering.
+  for pip_bin in pipx pip pip3; do
+    if command -v "${pip_bin}" >/dev/null 2>&1; then
+      "${pip_bin}" uninstall hotkey-transcriber -y >/dev/null 2>&1 || true
+    fi
+  done
+  # Also uninstall from all pyenv versions
+  if command -v pyenv >/dev/null 2>&1; then
+    while IFS= read -r pyenv_pip; do
+      "${pyenv_pip}" uninstall hotkey-transcriber -y >/dev/null 2>&1 || true
+    done < <(find "$(pyenv root)/versions" -name pip -o -name pip3 2>/dev/null)
+  fi
+
   # Create launcher script
   mkdir -p "$(dirname "${LAUNCHER}")"
   cat > "${LAUNCHER}" <<LAUNCHER_EOF

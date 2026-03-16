@@ -8,7 +8,7 @@ version = "0.1.4"
 description = "Live-Diktat-Tool mit Whisper"
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 dependencies = [
     "faster-whisper",
     "sounddevice",
