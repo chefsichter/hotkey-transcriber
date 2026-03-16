@@ -58,6 +58,10 @@ COMMON_MODEL_CHOICES = [
 ]
 
 WHISPER_CPP_MODEL_CHOICES = COMMON_MODEL_CHOICES + [
+    "large-v3-turbo-q8_0",
+    "large-v3-turbo-q5_0",
+    "large-v3-q8_0",
+    "large-v3-q5_0",
     "cstr/whisper-large-v3-turbo-german-ggml",
 ]
 

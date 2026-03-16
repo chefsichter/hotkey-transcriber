@@ -10,12 +10,19 @@ import numpy as np
 from huggingface_hub import hf_hub_download
 
 _MODEL_TO_HF_FILE = {
+    # Full precision
     "tiny": ("ggerganov/whisper.cpp", "ggml-tiny.bin"),
     "base": ("ggerganov/whisper.cpp", "ggml-base.bin"),
     "small": ("ggerganov/whisper.cpp", "ggml-small.bin"),
     "medium": ("ggerganov/whisper.cpp", "ggml-medium.bin"),
     "large-v3": ("ggerganov/whisper.cpp", "ggml-large-v3.bin"),
     "large-v3-turbo": ("ggerganov/whisper.cpp", "ggml-large-v3-turbo.bin"),
+    # Quantized (q8_0 ≈ lossless, q5_0 ≈ 30% kleiner/schneller, minimaler Qualitätsverlust)
+    "large-v3-turbo-q8_0": ("ggerganov/whisper.cpp", "ggml-large-v3-turbo-q8_0.bin"),
+    "large-v3-turbo-q5_0": ("ggerganov/whisper.cpp", "ggml-large-v3-turbo-q5_0.bin"),
+    "large-v3-q8_0": ("ggerganov/whisper.cpp", "ggml-large-v3-q8_0.bin"),
+    "large-v3-q5_0": ("ggerganov/whisper.cpp", "ggml-large-v3-q5_0.bin"),
+    # German-specific
     "cstr/whisper-large-v3-turbo-german-ggml": (
         "cstr/whisper-large-v3-turbo-german-ggml",
         "ggml-model.bin",
