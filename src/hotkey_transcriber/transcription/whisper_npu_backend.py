@@ -153,16 +153,18 @@ class WhisperNpuModel:
         # Block until server signals {"status": "ready"}.
         # VitisAI EP writes verbose debug output to stdout during NPU compilation.
         # Show a spinner with elapsed time on a background thread (independent of line rate).
+        # The reader thread keeps running after startup so transcribe() reads from the same queue
+        # (avoids race condition between reader thread and readline() competing on the same pipe).
         import time
         import queue
 
         start_time = time.time()
-        line_queue: queue.Queue = queue.Queue()
+        self._line_queue: queue.Queue = queue.Queue()
 
         def _reader():
             for line in self._proc.stdout:
-                line_queue.put(line)
-            line_queue.put(None)  # Sentinel: pipe closed
+                self._line_queue.put(line)
+            self._line_queue.put(None)  # Sentinel: pipe closed
 
         reader_thread = threading.Thread(target=_reader, daemon=True)
         reader_thread.start()
@@ -174,7 +176,7 @@ class WhisperNpuModel:
         while True:
             # Update spinner every 0.1s regardless of line rate
             try:
-                line = line_queue.get(timeout=0.1)
+                line = self._line_queue.get(timeout=0.1)
             except queue.Empty:
                 elapsed = int(time.time() - start_time)
                 char = spinner_chars[spinner_idx % len(spinner_chars)]
@@ -245,11 +247,11 @@ class WhisperNpuModel:
             with self._lock:
                 self._proc.stdin.write(request + "\n")
                 self._proc.stdin.flush()
-                # Skip any stray VitisAI debug lines; wait for valid JSON response
+                # Read from the shared queue (reader thread owns the pipe; direct readline would race)
                 result = None
                 while True:
-                    response_line = self._proc.stdout.readline()
-                    if not response_line:
+                    response_line = self._line_queue.get()  # blocks until next line or sentinel
+                    if response_line is None:
                         raise RuntimeError("[NPU] NPU-Server-Prozess unerwartet beendet.")
                     response_line = response_line.strip()
                     if not response_line:
