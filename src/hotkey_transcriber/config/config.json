@@ -1,5 +1,5 @@
 {
-  "model_size": "large-v3-turbo-q5_0",
+  "model_size": "large-v3-turbo",
   "hotkey": {
     "modifier": "alt",
     "key": "r"
@@ -7,7 +7,7 @@
   "language": "auto",
   "silence_timeout_ms": 1000,
   "notify_timeout_ms": 500,
-  "wake_word_enabled": true,
+  "wake_word_enabled": false,
   "wake_word_model": "hey kitt v2",
   "wake_word_script_actions_enabled": false,
   "wake_word_script_actions": [
