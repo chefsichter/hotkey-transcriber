@@ -126,6 +126,93 @@ function Resolve-VulkanSdkRoot {
     return $latest.FullName
 }
 
+function Install-NpuBackend {
+    $venvDir = Join-Path $repoRoot ".venv"
+    $python = Join-Path $venvDir "Scripts\python.exe"
+
+    if (-not (Test-Path $python)) {
+        Write-Host "==> Creating venv in $venvDir"
+        Invoke-External "Create venv" { & py -3.12 -m venv $venvDir }
+    }
+
+    Write-Host "==> Upgrading packaging tools"
+    Invoke-External "Upgrade pip" { & $python -m pip install --upgrade pip "setuptools<82" wheel }
+
+    Write-Host "==> Installing project in editable mode"
+    Invoke-External "Install project" { & $python -m pip install -e $repoRoot }
+
+    Write-Host ""
+    Write-Host "VORAUSSETZUNGEN fuer AMD NPU-Backend (ONNX/VitisAI):"
+    Write-Host "  - AMD Ryzen AI Software >= 1.7.0 mit Conda-Umgebung 'ryzen-ai-1.7.0'"
+    Write-Host "    https://ryzenai.docs.amd.com/en/latest/inst.html"
+    Write-Host "  - NPU-Treiber Version >= .280"
+    Write-Host "  - Nur unterstuetzt: Ryzen AI 300 Series (Strix Point / XDNA2)"
+    Write-Host ""
+    $confirm = Read-Host "Sind alle Voraussetzungen erfuellt? (j/n)"
+    if ($confirm -notmatch "^(j|ja|y|yes)$") {
+        Write-Host "Installation abgebrochen. Bitte zuerst AMD Ryzen AI Software installieren."
+        exit 1
+    }
+
+    # Find ryzen-ai-1.7.0 conda python
+    $condaEnvCandidates = @(
+        "C:\ProgramData\miniconda3\envs\ryzen-ai-1.7.0",
+        "$env:USERPROFILE\.conda\envs\ryzen-ai-1.7.0",
+        "$env:LOCALAPPDATA\conda\conda\envs\ryzen-ai-1.7.0",
+        "$env:USERPROFILE\AppData\Local\conda\conda\envs\ryzen-ai-1.7.0"
+    )
+    $condaPython = $null
+    foreach ($envPath in $condaEnvCandidates) {
+        $candidate = Join-Path $envPath "python.exe"
+        if (Test-Path $candidate) {
+            $condaPython = $candidate
+            Write-Host "==> Conda-Umgebung gefunden: $envPath"
+            break
+        }
+    }
+    if (-not $condaPython) {
+        throw "Python-Interpreter fuer ryzen-ai-1.7.0 nicht gefunden. Stelle sicher, dass AMD Ryzen AI Software 1.7.0 installiert ist."
+    }
+
+    # Verify vaip_config.json
+    $vaipConfigCandidates = @(
+        "C:\Program Files\RyzenAI\1.7.0\voe-4.0-win_amd64\vaip_config.json",
+        "C:\Program Files\RyzenAI\1.6.1\voe-4.0-win_amd64\vaip_config.json",
+        "C:\Program Files\RyzenAI\1.5.0\voe-4.0-win_amd64\vaip_config.json"
+    )
+    $vaipConfig = $null
+    foreach ($candidate in $vaipConfigCandidates) {
+        if (Test-Path $candidate) {
+            $vaipConfig = $candidate
+            Write-Host "==> vaip_config.json gefunden: $vaipConfig"
+            break
+        }
+    }
+    if (-not $vaipConfig) {
+        throw "vaip_config.json nicht gefunden. Stelle sicher, dass AMD Ryzen AI Software korrekt installiert ist."
+    }
+
+    # Install transformers in conda env if not present
+    Write-Host "==> Pruefe 'transformers' in Conda-Umgebung..."
+    $checkResult = & $condaPython -c "import transformers; print('ok')" 2>&1
+    if ($checkResult -notmatch "ok") {
+        Write-Host "==> Installiere 'transformers' in Conda-Umgebung..."
+        Invoke-External "Install transformers" { & $condaPython -m pip install transformers }
+    } else {
+        Write-Host "==> 'transformers' bereits vorhanden."
+    }
+
+    # Set backend env var; clear legacy whisper.cpp CLI var
+    [Environment]::SetEnvironmentVariable("HOTKEY_TRANSCRIBER_BACKEND", "whisper_npu", "User")
+    $env:HOTKEY_TRANSCRIBER_BACKEND = "whisper_npu"
+    [Environment]::SetEnvironmentVariable("HOTKEY_TRANSCRIBER_WHISPER_CPP_CLI", $null, "User")
+
+    Write-Host "==> AMD NPU ONNX/VitisAI-Backend konfiguriert."
+    Write-Host "    ONNX-Modelle werden beim ersten Start automatisch heruntergeladen."
+    Write-Host "    Die erste NPU-Kompilierung kann mehrere Minuten dauern."
+    return $venvDir
+}
+
 function Install-VulkanBackend {
     $venvDir = Join-Path $repoRoot ".venv"
     $python = Join-Path $venvDir "Scripts\python.exe"
@@ -234,11 +321,13 @@ Write-Host "      Voraussetzung: Vulkan SDK, git, cmake"
 Write-Host "      winget install --id KhronosGroup.VulkanSDK --exact"
 Write-Host "  [2] WSL ROCm              (AMD GPU via WSL; WSL-Setup separat via setup_wsl_amd.ps1)"
 Write-Host "  [3] CPU / Standard        (kein GPU, nur faster-whisper auf CPU)"
+Write-Host "  [4] AMD NPU ONNX/VitisAI   (Ryzen AI 300 XDNA2-NPU; erfordert Ryzen AI Software >= 1.7)"
+Write-Host "      https://ryzenai.docs.amd.com/en/latest/inst.html"
 Write-Host ""
 
 do {
-    $backendChoice = Read-Host "Auswahl (1/2/3)"
-} while ($backendChoice -notin @("1", "2", "3"))
+    $backendChoice = Read-Host "Auswahl (1/2/3/4)"
+} while ($backendChoice -notin @("1", "2", "3", "4"))
 
 switch ($backendChoice) {
     "1" {
@@ -268,6 +357,13 @@ switch ($backendChoice) {
         Write-Host "==> Installiere Standard-Backend (CPU, faster-whisper)..."
         Install-PipxBackend | Out-Null
         $exePath = Get-HotkeyTranscriberExecutable
+        New-StartMenuShortcut -ExePath $exePath
+    }
+    "4" {
+        Write-Host ""
+        Write-Host "==> Installiere AMD NPU ONNX/VitisAI-Backend..."
+        $venvDir = Install-NpuBackend
+        $exePath = Get-HotkeyTranscriberExecutable -VenvDir $venvDir
         New-StartMenuShortcut -ExePath $exePath
     }
 }

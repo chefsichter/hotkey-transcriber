@@ -125,10 +125,18 @@ def load_model(
             device = "cpu"
             compute_type = "float32"
 
+    if engine == "whisper_npu":
+        from hotkey_transcriber.transcription.whisper_npu_backend import WhisperNpuModel
+
+        print("Verwende ONNX/VitisAI NPU-Backend.", flush=True)
+        model = WhisperNpuModel(model_size=size)
+        print(f"Whisper-Modell '{size}' auf NPU bereit (ONNX/VitisAI).", flush=True)
+        return model
+
     if engine == "whisper_cpp":
         from hotkey_transcriber.transcription.whisper_cpp_backend import WhisperCppModel
 
-        print("AMD-GPU erkannt - verwende whisper.cpp (Vulkan)-Backend.", flush=True)
+        print("Verwende whisper.cpp (Vulkan)-Backend.", flush=True)
         stop_event = threading.Event()
         message = f"Lade Whisper-Modell '{size}' auf '{device}' (whisper.cpp)..."
         spinner_thread = threading.Thread(target=_spinner, args=(message, stop_event), daemon=True)

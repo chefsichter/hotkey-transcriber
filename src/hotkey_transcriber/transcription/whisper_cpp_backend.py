@@ -28,6 +28,7 @@ _MODEL_TO_HF_FILE = {
         "ggml-model.bin",
     ),
 }
+
 _CT2_ONLY_MODELS = {
     "distil-small.en",
     "distil-medium.en",
@@ -66,14 +67,14 @@ class WhisperCppModel:
         drive = os.environ.get("SystemDrive", "C:")
         if not drive.endswith("\\"):
             drive = f"{drive}\\"
-        short_base = Path(drive) / "htwcpp"
+        short_base_vulkan = Path(drive) / "htwcpp"
         candidates.extend(
             [
                 base / "build" / "bin" / "Release" / "whisper-cli.exe",
                 base / "build" / "bin" / "whisper-cli.exe",
                 base / "whisper-cli.exe",
-                short_base / "build" / "bin" / "Release" / "whisper-cli.exe",
-                short_base / "build" / "bin" / "whisper-cli.exe",
+                short_base_vulkan / "build" / "bin" / "Release" / "whisper-cli.exe",
+                short_base_vulkan / "build" / "bin" / "whisper-cli.exe",
             ]
         )
 
@@ -82,7 +83,7 @@ class WhisperCppModel:
                 return str(candidate)
 
         raise FileNotFoundError(
-            "whisper-cli.exe nicht gefunden. Fuehre tools/install_windows.ps1 -AmdGpu aus."
+            "whisper-cli.exe nicht gefunden. Fuehre tools/install_windows.ps1 aus und waehle Option [1] (Vulkan)."
         )
 
     def transcribe(
@@ -96,13 +97,6 @@ class WhisperCppModel:
         condition_on_previous_text=False,
     ):
         del vad_filter, condition_on_previous_text
-
-        import os
-
-        cpu_count = os.cpu_count() or 4
-        # With Vulkan active the GPU handles heavy computation; 4 threads suffice for
-        # CPU-side pre/post-processing and avoids contention with Vulkan driver threads.
-        threads = min(max(cpu_count // 6, 4), 8)
 
         audio_f32 = np.asarray(audio, dtype=np.float32)
         audio_i16 = np.clip(audio_f32, -1.0, 1.0)
@@ -128,14 +122,13 @@ class WhisperCppModel:
                 "-of", str(out_prefix),
                 "-nt",
                 "-np",
-                "-t", str(threads),
                 "-bs", str(max(1, beam_size)),
                 "-bo", str(max(1, best_of)),
                 "-tp", str(float(temperature)),
                 "-nf",
                 "-l", lang,
             ]
-            # Flash attention causes quality regressions for non-English languages (issue #3020).
+            # Flash attention causes quality regressions for non-English (issue #3020).
             if lang == "en":
                 cmd.append("-fa")
             else:

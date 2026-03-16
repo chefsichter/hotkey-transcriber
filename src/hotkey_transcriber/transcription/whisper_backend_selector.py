@@ -99,8 +99,17 @@ def resolve_backend(config: dict) -> dict:
     """
     selected = os.getenv("HOTKEY_TRANSCRIBER_BACKEND", config.get("backend", "native"))
 
-    if selected not in ("native", "wsl_amd"):
+    if selected not in ("native", "wsl_amd", "whisper_npu"):
         selected = "native"
+
+    if selected == "whisper_npu":
+        print("[NPU] AMD NPU-Backend ausgewaehlt. Nutze ONNX/VitisAI-Backend.")
+        return {
+            "backend": "native",
+            "device": "npu",
+            "compute_type": "float16",
+            "engine": "whisper_npu",
+        }
 
     if selected == "wsl_amd":
         print("🎮 AMD GPU unter Windows erkannt. Nutze WSL-Backend.")

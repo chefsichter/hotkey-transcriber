@@ -65,6 +65,9 @@ WHISPER_CPP_MODEL_CHOICES = COMMON_MODEL_CHOICES + [
     "cstr/whisper-large-v3-turbo-german-ggml",
 ]
 
+# NPU only supports non-quantized models (AMD provides .rai files for these only)
+WHISPER_NPU_MODEL_CHOICES = COMMON_MODEL_CHOICES[:]
+
 FASTER_WHISPER_MODEL_CHOICES = COMMON_MODEL_CHOICES + [
     "TheChola/whisper-large-v3-turbo-german-faster-whisper",
 ]
@@ -115,6 +118,8 @@ class TrayApp:
         self._build_menu()
 
     def _model_choices(self) -> list[str]:
+        if self.engine == "whisper_npu":
+            return WHISPER_NPU_MODEL_CHOICES
         if self.engine == "whisper_cpp":
             return WHISPER_CPP_MODEL_CHOICES
         return FASTER_WHISPER_MODEL_CHOICES
