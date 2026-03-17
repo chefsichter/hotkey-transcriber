@@ -232,12 +232,21 @@ except Exception:
     pass
 " || echo "  (verification skipped — run hotkey-transcriber to test)"
 
-  # Remove any conflicting hotkey-transcriber installations (e.g. pyenv, pipx)
-  # that would shadow the ROCm launcher in ~/.local/bin due to PATH ordering.
+  # Remove conflicting user/global installations that could shadow the ROCm
+  # launcher in ~/.local/bin, but keep the active project venv installation.
   for pip_bin in pipx pip pip3; do
-    if command -v "${pip_bin}" >/dev/null 2>&1; then
-      "${pip_bin}" uninstall hotkey-transcriber -y >/dev/null 2>&1 || true
+    if ! command -v "${pip_bin}" >/dev/null 2>&1; then
+      continue
     fi
+
+    pip_path="$(command -v "${pip_bin}")"
+    case "${pip_path}" in
+      "${VENV_DIR}/bin/"*)
+        continue
+        ;;
+    esac
+
+    "${pip_bin}" uninstall hotkey-transcriber -y >/dev/null 2>&1 || true
   done
   # Also uninstall from all pyenv versions
   if command -v pyenv >/dev/null 2>&1; then
