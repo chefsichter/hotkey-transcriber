@@ -103,10 +103,10 @@ def greedy_decode(decoder, enc_hidden, tokenizer, language):
 
     if language and language != "auto":
         lang_tok = tokenizer.convert_tokens_to_ids(f"<|{language}|>")
+        ids = [sot, lang_tok, task_tok, nots_tok]
     else:
-        lang_tok = tokenizer.convert_tokens_to_ids("<|multilingual|>")
-
-    ids = [sot, lang_tok, task_tok, nots_tok]
+        # No language token → model predicts language itself (Whisper LID)
+        ids = [sot, task_tok, nots_tok]
     max_new_tokens = 100  # Static-shape CPU decoder is slow for large models; 100 ≈ ~75 words
 
     enc_hs_dtype = infer_dtype(enc_hs_inp) if enc_hs_inp else np.float32
