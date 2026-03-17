@@ -44,8 +44,11 @@ try:
     from openwakeword.model import Model
 
     _HAVE_WAKE_WORD = True
+    # openwakeword <0.7: MODELS (uppercase); >=0.7: models (lowercase)
+    _OW_MODELS: dict = getattr(openwakeword, "models", None) or getattr(openwakeword, "MODELS", {})
 except ImportError:
     _HAVE_WAKE_WORD = False
+    _OW_MODELS: dict = {}
 
 _CUSTOM_WAKEWORD_DIRS = [
     Path(__file__).resolve().parent.parent / "resources" / "wakewords",
@@ -61,7 +64,7 @@ def list_available_wake_word_models() -> list[str]:
     """Return a sorted list of all available wake word model names."""
     models: set[str] = set()
     if _HAVE_WAKE_WORD:
-        models.update(key.replace("_", " ") for key in openwakeword.models)
+        models.update(key.replace("_", " ") for key in _OW_MODELS)
 
     for directory in _CUSTOM_WAKEWORD_DIRS:
         if not directory.exists():
@@ -98,7 +101,7 @@ class WakeWordListener:
             normalized_name = _normalize_model_name(model_name)
 
             if _HAVE_WAKE_WORD:
-                model_info = openwakeword.models.get(normalized_name)
+                model_info = _OW_MODELS.get(normalized_name)
                 if model_info:
                     resolved.append((normalized_name, model_info["model_path"]))
                     continue
